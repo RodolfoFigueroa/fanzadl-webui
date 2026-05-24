@@ -1,0 +1,161 @@
+<script lang="ts">
+    import type { DownloadJob } from "$lib/types";
+    import { stopJob } from "$lib/api";
+
+    let { job }: { job: DownloadJob } = $props();
+
+    const statusConfig: Record<string, { label: string; classes: string }> = {
+        pending: { label: "Pending", classes: "bg-sakura-800 text-sakura-300" },
+        running: {
+            label: "Downloading",
+            classes: "bg-sakura-700/60 text-sakura-300",
+        },
+        done: { label: "Complete", classes: "bg-green-900/60 text-green-300" },
+        error: { label: "Error", classes: "bg-red-900/60 text-red-300" },
+        cancelled: {
+            label: "Stopped",
+            classes: "bg-sakura-800 text-sakura-400",
+        },
+    };
+
+    function formatBytes(bytes: number): string {
+        if (bytes >= 1_073_741_824)
+            return `${(bytes / 1_073_741_824).toFixed(2)} GB`;
+        if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
+        if (bytes >= 1_024) return `${(bytes / 1_024).toFixed(0)} KB`;
+        return `${bytes} B`;
+    }
+
+    let cfg = $derived(statusConfig[job.status] ?? statusConfig.pending);
+    let progressPct = $derived(
+        job.status === "done" ? 100 : (job.percent_done ?? 0),
+    );
+    let showProgress = $derived(
+        job.status === "running" || job.status === "done",
+    );
+
+    let copied = $state(false);
+    let stopping = $state(false);
+
+    async function handleStop() {
+        stopping = true;
+        try {
+            await stopJob(job.job_id);
+        } catch {
+            stopping = false;
+        }
+    }
+
+    async function copyError() {
+        if (!job.error) return;
+        await navigator.clipboard.writeText(job.error);
+        copied = true;
+        setTimeout(() => (copied = false), 2000);
+    }
+</script>
+
+<div class="bg-th-surface border border-th-border rounded-xl p-4 space-y-3">
+    <!-- Title row -->
+    <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+            <p class="font-medium text-th-text truncate">
+                {job.output_name}.mp4
+            </p>
+            {#if job.out_time && job.status === "running"}
+                <p class="text-xs text-th-text-faint mt-0.5">{job.out_time}</p>
+            {/if}
+        </div>
+        <span
+            class="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full {cfg.classes}"
+        >
+            {cfg.label}
+        </span>
+        {#if job.status === "running"}
+            <button
+                onclick={handleStop}
+                disabled={stopping}
+                aria-label="Stop download"
+                class="flex-shrink-0 p-1 rounded text-gray-500 hover:text-red-400
+                    hover:bg-red-900/30 disabled:opacity-40 transition-colors"
+            >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="12" height="12" rx="1" />
+                </svg>
+            </button>
+        {/if}
+    </div>
+
+    <!-- Progress bar -->
+    {#if showProgress}
+        <div class="space-y-1">
+            <div class="w-full bg-th-input rounded-full h-1.5 overflow-hidden">
+                <div
+                    class="h-1.5 rounded-full transition-all duration-500
+					{job.status === 'done' ? 'bg-green-500' : 'bg-sakura-400'}"
+                    style="width: {progressPct}%"
+                ></div>
+            </div>
+            <div
+                class="flex items-center justify-between text-xs text-th-text-dim"
+            >
+                <span>
+                    {job.percent_done != null
+                        ? `${job.percent_done.toFixed(1)}%`
+                        : "Starting…"}
+                </span>
+                <span class="flex gap-3">
+                    {#if job.segments_done != null && job.segments_total != null}
+                        <span class="text-th-text-faint"
+                            >{job.segments_done}/{job.segments_total} segs</span
+                        >
+                    {/if}
+                    {#if job.speed && job.status === "running"}
+                        <span>{job.speed}</span>
+                    {/if}
+                    {#if job.bytes_downloaded != null}
+                        <span>{formatBytes(job.bytes_downloaded)}</span>
+                    {/if}
+                </span>
+            </div>
+        </div>
+    {/if}
+
+    <!-- Error message -->
+    {#if job.status === "error" && job.error}
+        <div
+            class="bg-red-900/20 border border-red-800 rounded-lg p-2.5 space-y-1.5"
+        >
+            <p class="text-xs text-red-400 font-mono break-all line-clamp-4">
+                {job.error}
+            </p>
+            <button
+                onclick={copyError}
+                class="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded
+					bg-red-800/50 hover:bg-red-700/60 text-red-300 hover:text-white
+					border border-red-700/50 transition-colors"
+            >
+                <svg
+                    class="w-3 h-3 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                </svg>
+                {copied ? "Copied!" : "Copy full error"}
+            </button>
+        </div>
+    {/if}
+
+    <!-- Output path when done -->
+    {#if job.status === "done" && job.output_path}
+        <p class="text-xs text-th-text-faint truncate" title={job.output_path}>
+            {job.output_path}
+        </p>
+    {/if}
+</div>
