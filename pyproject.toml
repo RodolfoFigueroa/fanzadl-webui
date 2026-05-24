@@ -11,7 +11,7 @@ dependencies = [
     "m3u8>=6.0.0",
     "pydantic-settings>=2.9.1",
     "sse-starlette>=2.0.0",
-    "uvicorn>=0.47.0",
+    "uvicorn>=0.48.0",
     "yt-dlp>=2026.3.17",
 ]
 
