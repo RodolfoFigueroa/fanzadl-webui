@@ -42,7 +42,7 @@ docker compose up -d
 
 ## Accessing the UI
 
-Open [http://localhost:8000](http://localhost:8000) in your browser.
+Open [http://localhost:4352](http://localhost:4352) in your browser.
 
 ## Usage
 

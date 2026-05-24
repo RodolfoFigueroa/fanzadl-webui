@@ -3,7 +3,7 @@ services:
     image: ghcr.io/rodolfofigueroa/fanzadl-webui:latest
     container_name: fanzadl-webui
     ports:
-      - "8000:8000"
+      - "4352:4352"
     env_file:
       - .env
     volumes:

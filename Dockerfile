@@ -34,6 +34,6 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 RUN mkdir -p /download /image_cache
 
-EXPOSE 8000
+EXPOSE 4352
 
 CMD ["uv", "run", "python", "main.py"]

@@ -4,7 +4,7 @@ services:
     container_name: fanzadl-webui
     build: .
     ports:
-      - "8000:8000"
+      - "4352:4352"
     env_file:
       - .env
     volumes:
