@@ -15,12 +15,13 @@ dependencies = [
     "yt-dlp>=2026.3.17",
 ]
 
-[tool.uv.sources]
-fanzadl = { git = "https://github.com/RodolfoFigueroa/FanzaDL" }
 
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = ["D", "COM812"]
+
+[tool.uv.sources]
+fanzadl = { git = "https://github.com/RodolfoFigueroa/FanzaDL", tag = "v0.1.0" }
 
 [dependency-groups]
 dev = ["ipykernel<7"]
