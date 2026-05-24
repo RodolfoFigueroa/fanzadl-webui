@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { goto } from "$app/navigation";
 	import { page } from "$app/state";
-	import { getApiKey } from "$lib/api";
 	import { getTheme, setTheme, initTheme } from "$lib/theme";
 	import type { ColorTheme } from "$lib/theme";
 	import "../app.css";
@@ -12,12 +10,6 @@
 	$effect(() => {
 		theme = getTheme();
 		initTheme();
-	});
-
-	$effect(() => {
-		if (!getApiKey() && page.url.pathname !== "/settings") {
-			goto("/settings");
-		}
 	});
 
 	function selectTheme(t: ColorTheme) {

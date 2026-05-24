@@ -9,7 +9,7 @@ from fanzadl.models.video import (
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from fanzadl_webui.dependencies import get_manager, verify_api_key
+from fanzadl_webui.dependencies import get_manager
 
 LibraryItem = VideoLibraryItemContentsModel | VRLibraryItemContentsModel
 
@@ -25,7 +25,7 @@ class LibraryItemResponse(BaseModel):
     trans_type: Literal["download", "stream"]
 
 
-router = APIRouter(prefix="/library", dependencies=[Depends(verify_api_key)])
+router = APIRouter(prefix="/library")
 
 
 def _serialize(item: LibraryItem) -> LibraryItemResponse:

@@ -6,7 +6,7 @@ from fanzadl import FanzaDLManager
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from fanzadl_webui.dependencies import get_manager, verify_api_key
+from fanzadl_webui.dependencies import get_manager
 from fanzadl_webui.jobs import get_http_client
 
 
@@ -18,7 +18,7 @@ class StreamVariant(BaseModel):
     uri: str
 
 
-router = APIRouter(prefix="/streams", dependencies=[Depends(verify_api_key)])
+router = APIRouter(prefix="/streams")
 
 
 def _resolve_playlist_url(

@@ -3,10 +3,10 @@ import asyncio
 from fanzadl import FanzaDLManager
 from fastapi import APIRouter, Depends, Request
 
-from fanzadl_webui.dependencies import get_manager, settings, verify_api_key
+from fanzadl_webui.dependencies import get_manager, settings
 from fanzadl_webui.routes.images import precache_all
 
-router = APIRouter(dependencies=[Depends(verify_api_key)])
+router = APIRouter()
 
 
 @router.post("/refresh_library/")

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
-from fanzadl_webui.dependencies import DOWNLOAD_DIR, verify_api_key
+from fanzadl_webui.dependencies import DOWNLOAD_DIR
 from fanzadl_webui.jobs import (
     DownloadJob,
     JobStatus,
@@ -17,7 +17,7 @@ from fanzadl_webui.jobs import (
     get_queues,
 )
 
-router = APIRouter(dependencies=[Depends(verify_api_key)])
+router = APIRouter()
 _background_tasks: set[asyncio.Task] = set()
 _processes: dict[str, asyncio.subprocess.Process] = {}
 
