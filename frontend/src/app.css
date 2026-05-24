@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    /* Base sakura palette — used for one-off accents and badges */
+    --color-sakura-50: #fff5f7;
+    --color-sakura-100: #ffe7de;
+    --color-sakura-200: #fcd1d7;
+    --color-sakura-300: #e9b1cd;
+    --color-sakura-400: #c3829e;
+    --color-sakura-500: #8a4a68;
+    --color-sakura-600: #562135;
+    --color-sakura-700: #42192e;
+    --color-sakura-800: #2e1220;
+    --color-sakura-900: #1c0b12;
+    --color-sakura-950: #0e0509;
+
+    /* Semantic theme tokens — light-mode defaults */
+    --color-th-base: #fdf0f4;
+    --color-th-surface: #ffffff;
+    --color-th-input: #fce8ee;
+    --color-th-input-nested: #f8d5e5;
+    --color-th-border: #e9b1cd;
+    --color-th-border-input: #fcd1d7;
+    --color-th-border-strong: #c3829e;
+    --color-th-text: #2e1220;
+    --color-th-text-muted: #562135;
+    --color-th-text-dim: #8a4a68;
+    --color-th-text-faint: #c3829e;
+    --color-th-accent: #562135;
+    --color-th-accent-hover: #42192e;
+    --color-th-accent-text: #fff5f7;
+    --color-th-brand: #42192e;
+    --color-th-brand-hover: #1c0b12;
+    --color-th-link: #562135;
+    --color-th-link-hover: #2e1220;
+}
+
+/* Dark mode — explicit class on <html> */
+html.dark {
+    --color-th-base: #0e0509;
+    --color-th-surface: #1c0b12;
+    --color-th-input: #2e1220;
+    --color-th-input-nested: #42192e;
+    --color-th-border: #2e1220;
+    --color-th-border-input: #42192e;
+    --color-th-border-strong: #562135;
+    --color-th-text: #ffe7de;
+    --color-th-text-muted: #e9b1cd;
+    --color-th-text-dim: #c3829e;
+    --color-th-text-faint: #8a4a68;
+    --color-th-accent: #562135;
+    --color-th-accent-hover: #8a4a68;
+    --color-th-accent-text: #ffe7de;
+    --color-th-brand: #e9b1cd;
+    --color-th-brand-hover: #fff5f7;
+    --color-th-link: #e9b1cd;
+    --color-th-link-hover: #fff5f7;
+}
+
+/* System preference — active when no explicit theme class is set */
+@media (prefers-color-scheme: dark) {
+    html:not(.light):not(.dark) {
+        --color-th-base: #0e0509;
+        --color-th-surface: #1c0b12;
+        --color-th-input: #2e1220;
+        --color-th-input-nested: #42192e;
+        --color-th-border: #2e1220;
+        --color-th-border-input: #42192e;
+        --color-th-border-strong: #562135;
+        --color-th-text: #ffe7de;
+        --color-th-text-muted: #e9b1cd;
+        --color-th-text-dim: #c3829e;
+        --color-th-text-faint: #8a4a68;
+        --color-th-accent: #562135;
+        --color-th-accent-hover: #8a4a68;
+        --color-th-accent-text: #ffe7de;
+        --color-th-brand: #e9b1cd;
+        --color-th-brand-hover: #fff5f7;
+        --color-th-link: #e9b1cd;
+        --color-th-link-hover: #fff5f7;
+    }
+}
