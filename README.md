@@ -18,12 +18,10 @@ A web interface for browsing your FANZA purchased video library and downloading 
 
 1. Copy the `.env` and `docker-compose.yml` files at the root of this repository.
 
-2. Edit the `.env` file and fill in your FANZA credentials. Then, set `DOWNLOAD_DIR` to a path to an **existing directory** in your computer
+2. Edit the `.env` file and set `DOWNLOAD_DIR` to a path to an **existing directory** in your computer
 
 ```env
 DOWNLOAD_DIR=<your path>
-FANZA_EMAIL=your@email.com
-FANZA_PASSWORD=yourpassword
 ```
 
 3. Start the container:
@@ -38,6 +36,10 @@ docker compose up -d
 Open [http://localhost:4352](http://localhost:4352) in your browser.
 
 ## Usage
+
+**First login**
+
+The first time you access the UI, you will be prompted to enter your FANZA email and password. This information is only used to generate authentication tokens, and then discarded. It is never stored or transmitted. You can log out and log in with a different account at any time from the **Settings** page.
 
 **Library**
 
