@@ -71,11 +71,11 @@ async function copyError() {
         >
             {cfg.label}
         </span>
-        {#if job.status === "running"}
+        {#if job.status === "running" || job.status === "pending"}
             <button
                 onclick={handleStop}
                 disabled={stopping}
-                aria-label="Stop download"
+                aria-label="Cancel download"
                 class="flex-shrink-0 p-1 rounded text-gray-500 hover:text-red-400
                     hover:bg-red-900/30 disabled:opacity-40 transition-colors"
             >
