@@ -1,33 +1,33 @@
 <script lang="ts">
-    import { goto } from "$app/navigation";
-    import { onMount } from "svelte";
-    import { getAuthStatus, login } from "$lib/api";
+import { onMount } from 'svelte';
+import { goto } from '$app/navigation';
+import { getAuthStatus, login } from '$lib/api';
 
-    let email = $state("");
-    let password = $state("");
-    let error = $state<string | null>(null);
-    let loading = $state(false);
+let email = $state('');
+let password = $state('');
+let error = $state<string | null>(null);
+let loading = $state(false);
 
-    onMount(async () => {
-        const s = await getAuthStatus();
-        if (s.authenticated) {
-            goto("/");
-        }
-    });
-
-    async function handleSubmit(e: Event) {
-        e.preventDefault();
-        error = null;
-        loading = true;
-        try {
-            await login(email, password);
-            goto("/");
-        } catch (err) {
-            error = err instanceof Error ? err.message : "Login failed";
-        } finally {
-            loading = false;
-        }
+onMount(async () => {
+    const s = await getAuthStatus();
+    if (s.authenticated) {
+        goto('/');
     }
+});
+
+async function handleSubmit(e: Event) {
+    e.preventDefault();
+    error = null;
+    loading = true;
+    try {
+        await login(email, password);
+        goto('/');
+    } catch (err) {
+        error = err instanceof Error ? err.message : 'Login failed';
+    } finally {
+        loading = false;
+    }
+}
 </script>
 
 <svelte:head>

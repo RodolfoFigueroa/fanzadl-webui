@@ -8,9 +8,13 @@
         "build": "vite build",
         "preview": "vite preview",
         "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-        "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+        "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+        "format": "biome format --write src/",
+        "lint": "biome lint src/",
+        "biome:check": "biome check src/"
     },
     "devDependencies": {
+        "@biomejs/biome": "^2.4.15",
         "@sveltejs/adapter-static": "^3.0.8",
         "@sveltejs/kit": "^2.21.0",
         "@sveltejs/vite-plugin-svelte": "^5.0.3",

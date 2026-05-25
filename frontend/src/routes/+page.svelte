@@ -1,73 +1,73 @@
 <script lang="ts">
-	import { onMount } from "svelte";
-	import { goto } from "$app/navigation";
-	import { getLibrary, refreshLibrary } from "$lib/api";
-	import VideoCard from "$lib/components/VideoCard.svelte";
-	import DownloadModal from "$lib/components/DownloadModal.svelte";
-	import type { LibraryItem } from "$lib/types";
+import { onMount } from 'svelte';
+import { goto } from '$app/navigation';
+import { getLibrary, refreshLibrary } from '$lib/api';
+import DownloadModal from '$lib/components/DownloadModal.svelte';
+import VideoCard from '$lib/components/VideoCard.svelte';
+import type { LibraryItem } from '$lib/types';
 
-	let library = $state<LibraryItem[]>([]);
-	let loading = $state(true);
-	let error = $state("");
-	let refreshing = $state(false);
-	let selectedItem = $state<LibraryItem | null>(null);
+let library = $state<LibraryItem[]>([]);
+let loading = $state(true);
+let error = $state('');
+let refreshing = $state(false);
+let selectedItem = $state<LibraryItem | null>(null);
 
-	type SortField = "title" | "purchase_date" | "parts" | "expire";
-	let sortField = $state<SortField>("purchase_date");
-	let sortAsc = $state(false);
+type SortField = 'title' | 'purchase_date' | 'parts' | 'expire';
+let sortField = $state<SortField>('purchase_date');
+let sortAsc = $state(false);
 
-	function daysLeft(expireStr: string): number {
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-		const expire = new Date(expireStr + "T00:00:00");
-		return Math.round((expire.getTime() - today.getTime()) / 86_400_000);
-	}
+function daysLeft(expireStr: string): number {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expire = new Date(`${expireStr}T00:00:00`);
+    return Math.round((expire.getTime() - today.getTime()) / 86_400_000);
+}
 
-	const sortedLibrary = $derived(
-		[...library].sort((a, b) => {
-			let cmp = 0;
-			if (sortField === "title") {
-				cmp = a.title.localeCompare(b.title);
-			} else if (sortField === "purchase_date") {
-				cmp =
-					new Date(a.purchase_date).getTime() -
-					new Date(b.purchase_date).getTime();
-			} else if (sortField === "parts") {
-				cmp = (a.parts || 1) - (b.parts || 1);
-			} else if (sortField === "expire") {
-				cmp = daysLeft(a.expire) - daysLeft(b.expire);
-			}
-			return sortAsc ? cmp : -cmp;
-		}),
-	);
+const sortedLibrary = $derived(
+    [...library].sort((a, b) => {
+        let cmp = 0;
+        if (sortField === 'title') {
+            cmp = a.title.localeCompare(b.title);
+        } else if (sortField === 'purchase_date') {
+            cmp =
+                new Date(a.purchase_date).getTime() -
+                new Date(b.purchase_date).getTime();
+        } else if (sortField === 'parts') {
+            cmp = (a.parts || 1) - (b.parts || 1);
+        } else if (sortField === 'expire') {
+            cmp = daysLeft(a.expire) - daysLeft(b.expire);
+        }
+        return sortAsc ? cmp : -cmp;
+    }),
+);
 
-	async function loadLibrary() {
-		error = "";
-		try {
-			const data = await getLibrary();
-			library = Object.values(data);
-		} catch (e) {
-			error = e instanceof Error ? e.message : "Failed to load library";
-		} finally {
-			loading = false;
-		}
-	}
+async function loadLibrary() {
+    error = '';
+    try {
+        const data = await getLibrary();
+        library = Object.values(data);
+    } catch (e) {
+        error = e instanceof Error ? e.message : 'Failed to load library';
+    } finally {
+        loading = false;
+    }
+}
 
-	async function handleRefresh() {
-		refreshing = true;
-		loading = true;
-		try {
-			await refreshLibrary();
-			await loadLibrary();
-		} catch (e) {
-			error = e instanceof Error ? e.message : "Refresh failed";
-			loading = false;
-		} finally {
-			refreshing = false;
-		}
-	}
+async function handleRefresh() {
+    refreshing = true;
+    loading = true;
+    try {
+        await refreshLibrary();
+        await loadLibrary();
+    } catch (e) {
+        error = e instanceof Error ? e.message : 'Refresh failed';
+        loading = false;
+    } finally {
+        refreshing = false;
+    }
+}
 
-	onMount(loadLibrary);
+onMount(loadLibrary);
 </script>
 
 <svelte:head>
@@ -95,7 +95,9 @@
 				d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
 			/>
 		</svg>
-		<span class="hidden sm:inline">{refreshing ? "Refreshing…" : "Refresh Library"}</span>
+		<span class="hidden sm:inline"
+			>{refreshing ? "Refreshing…" : "Refresh Library"}</span
+		>
 	</button>
 </div>
 

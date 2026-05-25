@@ -1,32 +1,32 @@
 <script lang="ts">
-	import type { LibraryItem } from "$lib/types";
+import type { LibraryItem } from '$lib/types';
 
-	let {
-		item,
-		onDownload,
-	}: {
-		item: LibraryItem;
-		onDownload: (item: LibraryItem) => void;
-	} = $props();
+let {
+    item,
+    onDownload,
+}: {
+    item: LibraryItem;
+    onDownload: (item: LibraryItem) => void;
+} = $props();
 
-	let imgError = $state(false);
+let imgError = $state(false);
 
-	function formatDate(dateStr: string): string {
-		return new Date(dateStr).toLocaleDateString(undefined, {
-			year: "numeric",
-			month: "short",
-			day: "numeric",
-		});
-	}
+function formatDate(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    });
+}
 
-	function daysLeft(expireStr: string): number {
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-		const expire = new Date(expireStr + "T00:00:00");
-		return Math.round((expire.getTime() - today.getTime()) / 86_400_000);
-	}
+function daysLeft(expireStr: string): number {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expire = new Date(`${expireStr}T00:00:00`);
+    return Math.round((expire.getTime() - today.getTime()) / 86_400_000);
+}
 
-	const days = $derived(daysLeft(item.expire));
+const days = $derived(daysLeft(item.expire));
 </script>
 
 <div

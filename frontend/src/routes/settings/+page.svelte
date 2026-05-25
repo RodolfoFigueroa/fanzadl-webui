@@ -1,29 +1,29 @@
 <script lang="ts">
-    import { onMount } from "svelte";
-    import { goto } from "$app/navigation";
-    import {
-        getSettings,
-        getThreadCount,
-        setThreadCount,
-        updateSettings,
-        logout,
-    } from "$lib/api";
+import { onMount } from 'svelte';
+import { goto } from '$app/navigation';
+import {
+    getSettings,
+    getThreadCount,
+    logout,
+    setThreadCount,
+    updateSettings,
+} from '$lib/api';
 
-    async function handleLogout() {
-        try {
-            await logout();
-        } finally {
-            goto("/login");
-        }
+async function handleLogout() {
+    try {
+        await logout();
+    } finally {
+        goto('/login');
     }
+}
 
-    let threadCount = $state(getThreadCount());
-    let maxConcurrentDownloads = $state(3);
+let threadCount = $state(getThreadCount());
+let maxConcurrentDownloads = $state(3);
 
-    onMount(async () => {
-        const s = await getSettings();
-        maxConcurrentDownloads = s.max_concurrent_downloads;
-    });
+onMount(async () => {
+    const s = await getSettings();
+    maxConcurrentDownloads = s.max_concurrent_downloads;
+});
 </script>
 
 <svelte:head>

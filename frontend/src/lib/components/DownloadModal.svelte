@@ -1,137 +1,135 @@
 <script lang="ts">
-    import { onMount, untrack } from "svelte";
-    import { goto } from "$app/navigation";
-    import { getStreams, getThreadCount, startDownload } from "$lib/api";
-    import type { LibraryItem, StreamVariant } from "$lib/types";
+import { onMount, untrack } from 'svelte';
+import { goto } from '$app/navigation';
+import { getStreams, getThreadCount, startDownload } from '$lib/api';
+import type { LibraryItem, StreamVariant } from '$lib/types';
 
-    let {
-        item,
-        onClose,
-    }: {
-        item: LibraryItem;
-        onClose: () => void;
-    } = $props();
+let {
+    item,
+    onClose,
+}: {
+    item: LibraryItem;
+    onClose: () => void;
+} = $props();
 
-    function sanitizeFilename(s: string): string {
-        return s.replace(/[\\/:*?"<>|]/g, "").trim();
-    }
+function sanitizeFilename(s: string): string {
+    return s.replace(/[\\/:*?"<>|]/g, '').trim();
+}
 
-    function formatBandwidth(bps: number): string {
-        if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
-        if (bps >= 1_000) return `${(bps / 1_000).toFixed(0)} Kbps`;
-        return `${bps} bps`;
-    }
+function formatBandwidth(bps: number): string {
+    if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
+    if (bps >= 1_000) return `${(bps / 1_000).toFixed(0)} Kbps`;
+    return `${bps} bps`;
+}
 
-    // Use untrack to explicitly capture initial prop values (modal is never re-used with a different item)
-    // parts=0 means a single part accessed via index 0; parts>=1 are 1-indexed
-    const partNumbers = untrack(() =>
-        item.parts === 0
-            ? [0]
-            : Array.from({ length: item.parts }, (_, i) => i + 1),
-    );
-    const baseFilename = untrack(() => item.product_id);
+// Use untrack to explicitly capture initial prop values (modal is never re-used with a different item)
+// parts=0 means a single part accessed via index 0; parts>=1 are 1-indexed
+const partNumbers = untrack(() =>
+    item.parts === 0
+        ? [0]
+        : Array.from({ length: item.parts }, (_, i) => i + 1),
+);
+const baseFilename = untrack(() => item.product_id);
 
-    let enabledParts = $state<boolean[]>(partNumbers.map(() => true));
+let enabledParts = $state<boolean[]>(partNumbers.map(() => true));
 
-    let streamsPerPart = $state<StreamVariant[][]>(partNumbers.map(() => []));
-    let selectedPerPart = $state<StreamVariant[]>(
-        partNumbers.map(() => ({}) as StreamVariant),
-    );
-    let filenamesPerPart = $state<string[]>(
-        partNumbers.map((p) =>
-            partNumbers.length === 1
-                ? baseFilename
-                : `${baseFilename}_${String(p).padStart(2, "0")}`,
+let streamsPerPart = $state<StreamVariant[][]>(partNumbers.map(() => []));
+let selectedPerPart = $state<StreamVariant[]>(
+    partNumbers.map(() => ({}) as StreamVariant),
+);
+let filenamesPerPart = $state<string[]>(
+    partNumbers.map((p) =>
+        partNumbers.length === 1
+            ? baseFilename
+            : `${baseFilename}_${String(p).padStart(2, '0')}`,
+    ),
+);
+
+let loadingStreams = $state(true);
+let streamError = $state('');
+let submitting = $state(false);
+let submitError = $state('');
+let copiedPerPart = $state<boolean[]>(partNumbers.map(() => false));
+
+async function copyUrl(i: number) {
+    const uri = selectedPerPart[i]?.uri;
+    if (!uri) return;
+    await navigator.clipboard.writeText(uri);
+    const updated = [...copiedPerPart];
+    updated[i] = true;
+    copiedPerPart = updated;
+    setTimeout(() => {
+        const reset = [...copiedPerPart];
+        reset[i] = false;
+        copiedPerPart = reset;
+    }, 2000);
+}
+
+let enabledCount = $derived(enabledParts.filter(Boolean).length);
+let allEnabled = $derived(enabledCount === partNumbers.length);
+
+let canSubmit = $derived(
+    !loadingStreams &&
+        !streamError &&
+        !submitting &&
+        enabledCount > 0 &&
+        partNumbers.every(
+            (_, i) => !enabledParts[i] || selectedPerPart[i]?.uri != null,
         ),
-    );
+);
 
-    let loadingStreams = $state(true);
-    let streamError = $state("");
-    let submitting = $state(false);
-    let submitError = $state("");
-    let copiedPerPart = $state<boolean[]>(partNumbers.map(() => false));
-
-    async function copyUrl(i: number) {
-        const uri = selectedPerPart[i]?.uri;
-        if (!uri) return;
-        await navigator.clipboard.writeText(uri);
-        const updated = [...copiedPerPart];
-        updated[i] = true;
-        copiedPerPart = updated;
-        setTimeout(() => {
-            const reset = [...copiedPerPart];
-            reset[i] = false;
-            copiedPerPart = reset;
-        }, 2000);
+onMount(async () => {
+    try {
+        const results = await Promise.all(
+            partNumbers.map((p) => getStreams(item.mylibrary_id, p)),
+        );
+        streamsPerPart = results.map((variants) =>
+            [...variants].sort((a, b) => b.bandwidth - a.bandwidth),
+        );
+        selectedPerPart = streamsPerPart.map(
+            (variants) => variants[0] ?? ({} as StreamVariant),
+        );
+    } catch (e) {
+        streamError =
+            e instanceof Error ? e.message : 'Failed to fetch stream variants';
+    } finally {
+        loadingStreams = false;
     }
+});
 
-    let enabledCount = $derived(enabledParts.filter(Boolean).length);
-    let allEnabled = $derived(enabledCount === partNumbers.length);
-
-    let canSubmit = $derived(
-        !loadingStreams &&
-            !streamError &&
-            !submitting &&
-            enabledCount > 0 &&
-            partNumbers.every(
-                (_, i) => !enabledParts[i] || selectedPerPart[i]?.uri != null,
+async function handleSubmit() {
+    submitting = true;
+    submitError = '';
+    try {
+        await Promise.all(
+            partNumbers.flatMap((_, i) =>
+                enabledParts[i]
+                    ? [
+                          startDownload(
+                              selectedPerPart[i].uri,
+                              filenamesPerPart[i],
+                              getThreadCount(),
+                          ),
+                      ]
+                    : [],
             ),
-    );
-
-    onMount(async () => {
-        try {
-            const results = await Promise.all(
-                partNumbers.map((p) => getStreams(item.mylibrary_id, p)),
-            );
-            streamsPerPart = results.map((variants) =>
-                [...variants].sort((a, b) => b.bandwidth - a.bandwidth),
-            );
-            selectedPerPart = streamsPerPart.map(
-                (variants) => variants[0] ?? ({} as StreamVariant),
-            );
-        } catch (e) {
-            streamError =
-                e instanceof Error
-                    ? e.message
-                    : "Failed to fetch stream variants";
-        } finally {
-            loadingStreams = false;
-        }
-    });
-
-    async function handleSubmit() {
-        submitting = true;
-        submitError = "";
-        try {
-            await Promise.all(
-                partNumbers.flatMap((_, i) =>
-                    enabledParts[i]
-                        ? [
-                              startDownload(
-                                  selectedPerPart[i].uri,
-                                  filenamesPerPart[i],
-                                  getThreadCount(),
-                              ),
-                          ]
-                        : [],
-                ),
-            );
-            onClose();
-            goto("/downloads");
-        } catch (e) {
-            submitError =
-                e instanceof Error ? e.message : "Failed to start download";
-            submitting = false;
-        }
+        );
+        onClose();
+        goto('/downloads');
+    } catch (e) {
+        submitError =
+            e instanceof Error ? e.message : 'Failed to start download';
+        submitting = false;
     }
+}
 
-    function handleBackdropClick(e: MouseEvent) {
-        if (e.target === e.currentTarget) onClose();
-    }
+function handleBackdropClick(e: MouseEvent) {
+    if (e.target === e.currentTarget) onClose();
+}
 
-    function handleKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape") onClose();
-    }
+function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') onClose();
+}
 </script>
 
 <!-- Backdrop -->

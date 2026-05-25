@@ -1,130 +1,118 @@
 <script lang="ts">
-	import { onMount, onDestroy } from "svelte";
-	import {
-		getJobs,
-		subscribeJobEvents,
-		deleteJobs,
-		stopAllJobs,
-	} from "$lib/api";
-	import JobCard from "$lib/components/JobCard.svelte";
-	import type { DownloadJob } from "$lib/types";
+import { onDestroy, onMount } from 'svelte';
+import { deleteJobs, getJobs, stopAllJobs, subscribeJobEvents } from '$lib/api';
+import JobCard from '$lib/components/JobCard.svelte';
+import type { DownloadJob } from '$lib/types';
 
-	let jobs = $state<Record<string, DownloadJob>>({});
-	let loading = $state(true);
-	let error = $state("");
+let jobs = $state<Record<string, DownloadJob>>({});
+let loading = $state(true);
+let error = $state('');
 
-	const controllers = new Map<string, AbortController>();
+const controllers = new Map<string, AbortController>();
 
-	function openSubscription(job: DownloadJob) {
-		if (job.status === "done" || job.status === "error") return;
-		if (controllers.has(job.job_id)) return;
+function openSubscription(job: DownloadJob) {
+    if (job.status === 'done' || job.status === 'error') return;
+    if (controllers.has(job.job_id)) return;
 
-		const controller = new AbortController();
-		controllers.set(job.job_id, controller);
+    const controller = new AbortController();
+    controllers.set(job.job_id, controller);
 
-		subscribeJobEvents(
-			job.job_id,
-			(updated) => {
-				jobs = { ...jobs, [updated.job_id]: updated };
-				if (
-					updated.status === "done" ||
-					updated.status === "error" ||
-					updated.status === "cancelled"
-				) {
-					controllers.get(updated.job_id)?.abort();
-					controllers.delete(updated.job_id);
-				}
-			},
-			() => {
-				controllers.delete(job.job_id);
-			},
-			controller.signal,
-		);
-	}
+    subscribeJobEvents(
+        job.job_id,
+        (updated) => {
+            jobs = { ...jobs, [updated.job_id]: updated };
+            if (
+                updated.status === 'done' ||
+                updated.status === 'error' ||
+                updated.status === 'cancelled'
+            ) {
+                controllers.get(updated.job_id)?.abort();
+                controllers.delete(updated.job_id);
+            }
+        },
+        () => {
+            controllers.delete(job.job_id);
+        },
+        controller.signal,
+    );
+}
 
-	onMount(async () => {
-		try {
-			const existing = await getJobs();
-			const map: Record<string, DownloadJob> = {};
-			for (const job of existing) {
-				map[job.job_id] = job;
-			}
-			jobs = map;
-			for (const job of existing) {
-				openSubscription(job);
-			}
-		} catch (e) {
-			error = e instanceof Error ? e.message : "Failed to load jobs";
-		} finally {
-			loading = false;
-		}
-	});
+onMount(async () => {
+    try {
+        const existing = await getJobs();
+        const map: Record<string, DownloadJob> = {};
+        for (const job of existing) {
+            map[job.job_id] = job;
+        }
+        jobs = map;
+        for (const job of existing) {
+            openSubscription(job);
+        }
+    } catch (e) {
+        error = e instanceof Error ? e.message : 'Failed to load jobs';
+    } finally {
+        loading = false;
+    }
+});
 
-	onDestroy(() => {
-		for (const controller of controllers.values()) {
-			controller.abort();
-		}
-		controllers.clear();
-	});
+onDestroy(() => {
+    for (const controller of controllers.values()) {
+        controller.abort();
+    }
+    controllers.clear();
+});
 
-	const statusOrder: Record<string, number> = {
-		running: 0,
-		pending: 1,
-		error: 2,
-		done: 3,
-	};
+const statusOrder: Record<string, number> = {
+    running: 0,
+    pending: 1,
+    error: 2,
+    done: 3,
+};
 
-	let sortedJobs = $derived(
-		Object.values(jobs).sort(
-			(a, b) =>
-				(statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4),
-		),
-	);
+let sortedJobs = $derived(
+    Object.values(jobs).sort(
+        (a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4),
+    ),
+);
 
-	let hasFinished = $derived(
-		Object.values(jobs).some((j) =>
-			["done", "error", "cancelled"].includes(j.status),
-		),
-	);
-	let hasDone = $derived(
-		Object.values(jobs).some((j) => j.status === "done"),
-	);
-	let hasErrored = $derived(
-		Object.values(jobs).some((j) =>
-			["error", "cancelled"].includes(j.status),
-		),
-	);
-	let hasActive = $derived(
-		Object.values(jobs).some((j) =>
-			["running", "pending"].includes(j.status),
-		),
-	);
+let hasFinished = $derived(
+    Object.values(jobs).some((j) =>
+        ['done', 'error', 'cancelled'].includes(j.status),
+    ),
+);
+let hasDone = $derived(Object.values(jobs).some((j) => j.status === 'done'));
+let hasErrored = $derived(
+    Object.values(jobs).some((j) => ['error', 'cancelled'].includes(j.status)),
+);
+let hasActive = $derived(
+    Object.values(jobs).some((j) => ['running', 'pending'].includes(j.status)),
+);
 
-	async function handleStopAll() {
-		await stopAllJobs();
-	}
+async function handleStopAll() {
+    await stopAllJobs();
+}
 
-	function handleJobDeleted(jobId: string) {
-		const { [jobId]: _, ...rest } = jobs;
-		jobs = rest;
-	}
+function handleJobDeleted(jobId: string) {
+    const { [jobId]: _, ...rest } = jobs;
+    jobs = rest;
+}
 
-	async function handleBulkDelete(filter: "finished" | "done" | "errored") {
-		await deleteJobs(filter);
-		const statuses =
-			filter === "done"
-				? ["done"]
-				: filter === "errored"
-					? ["error", "cancelled"]
-					: ["done", "error", "cancelled"];
-		const updated = { ...jobs };
-		for (const [id, job] of Object.entries(updated)) {
-			if (statuses.includes(job.status)) {
-				delete updated[id];
-			}
-		}
-		jobs = updated;
-	}
+async function handleBulkDelete(filter: 'finished' | 'done' | 'errored') {
+    await deleteJobs(filter);
+    const statuses =
+        filter === 'done'
+            ? ['done']
+            : filter === 'errored'
+              ? ['error', 'cancelled']
+              : ['done', 'error', 'cancelled'];
+    const updated = { ...jobs };
+    for (const [id, job] of Object.entries(updated)) {
+        if (statuses.includes(job.status)) {
+            delete updated[id];
+        }
+    }
+    jobs = updated;
+}
 </script>
 
 <svelte:head>

@@ -1,63 +1,61 @@
 <script lang="ts">
-    import type { DownloadJob } from "$lib/types";
-    import { stopJob } from "$lib/api";
+import { stopJob } from '$lib/api';
+import type { DownloadJob } from '$lib/types';
 
-    let {
-        job,
-        onDelete,
-    }: { job: DownloadJob; onDelete?: (jobId: string) => void } = $props();
+let {
+    job,
+    onDelete,
+}: { job: DownloadJob; onDelete?: (jobId: string) => void } = $props();
 
-    const statusConfig: Record<string, { label: string; classes: string }> = {
-        pending: { label: "Pending", classes: "bg-sakura-800 text-sakura-300" },
-        running: {
-            label: "Downloading",
-            classes: "bg-sakura-700/60 text-sakura-300",
-        },
-        done: { label: "Complete", classes: "bg-green-900/60 text-green-300" },
-        error: { label: "Error", classes: "bg-red-900/60 text-red-300" },
-        cancelled: {
-            label: "Stopped",
-            classes: "bg-sakura-800 text-sakura-400",
-        },
-    };
+const statusConfig: Record<string, { label: string; classes: string }> = {
+    pending: { label: 'Pending', classes: 'bg-sakura-800 text-sakura-300' },
+    running: {
+        label: 'Downloading',
+        classes: 'bg-sakura-700/60 text-sakura-300',
+    },
+    done: { label: 'Complete', classes: 'bg-green-900/60 text-green-300' },
+    error: { label: 'Error', classes: 'bg-red-900/60 text-red-300' },
+    cancelled: {
+        label: 'Stopped',
+        classes: 'bg-sakura-800 text-sakura-400',
+    },
+};
 
-    let cfg = $derived(statusConfig[job.status] ?? statusConfig.pending);
-    let progressPct = $derived(
-        job.status === "done" ? 100 : (job.percent_done ?? 0),
-    );
-    let showProgress = $derived(
-        job.status === "running" || job.status === "done",
-    );
+let cfg = $derived(statusConfig[job.status] ?? statusConfig.pending);
+let progressPct = $derived(
+    job.status === 'done' ? 100 : (job.percent_done ?? 0),
+);
+let showProgress = $derived(job.status === 'running' || job.status === 'done');
 
-    let copied = $state(false);
-    let stopping = $state(false);
-    let deleting = $state(false);
+let copied = $state(false);
+let stopping = $state(false);
+let deleting = $state(false);
 
-    async function handleStop() {
-        stopping = true;
-        try {
-            await stopJob(job.job_id);
-        } catch {
-            stopping = false;
-        }
+async function handleStop() {
+    stopping = true;
+    try {
+        await stopJob(job.job_id);
+    } catch {
+        stopping = false;
     }
+}
 
-    async function handleDelete() {
-        deleting = true;
-        try {
-            await stopJob(job.job_id);
-            onDelete?.(job.job_id);
-        } catch {
-            deleting = false;
-        }
+async function handleDelete() {
+    deleting = true;
+    try {
+        await stopJob(job.job_id);
+        onDelete?.(job.job_id);
+    } catch {
+        deleting = false;
     }
+}
 
-    async function copyError() {
-        if (!job.error) return;
-        await navigator.clipboard.writeText(job.error);
-        copied = true;
-        setTimeout(() => (copied = false), 2000);
-    }
+async function copyError() {
+    if (!job.error) return;
+    await navigator.clipboard.writeText(job.error);
+    copied = true;
+    setTimeout(() => (copied = false), 2000);
+}
 </script>
 
 <div class="bg-th-surface border border-th-border rounded-xl p-4 space-y-3">
