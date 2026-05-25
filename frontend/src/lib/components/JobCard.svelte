@@ -2,7 +2,10 @@
     import type { DownloadJob } from "$lib/types";
     import { stopJob, deleteJob } from "$lib/api";
 
-    let { job, onDelete }: { job: DownloadJob; onDelete?: (jobId: string) => void } = $props();
+    let {
+        job,
+        onDelete,
+    }: { job: DownloadJob; onDelete?: (jobId: string) => void } = $props();
 
     const statusConfig: Record<string, { label: string; classes: string }> = {
         pending: { label: "Pending", classes: "bg-sakura-800 text-sakura-300" },
@@ -101,8 +104,18 @@
                 class="flex-shrink-0 p-1 rounded text-gray-500 hover:text-red-400
                     hover:bg-red-900/30 disabled:opacity-40 transition-colors"
             >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
                 </svg>
             </button>
         {/if}

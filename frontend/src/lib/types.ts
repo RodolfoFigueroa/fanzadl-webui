@@ -4,8 +4,6 @@ export interface DownloadJob {
     job_id: string;
     status: JobStatus;
     output_name: string;
-    bytes_downloaded: number | null;
-    out_time: string | null;
     speed: string | null;
     percent_done: number | null;
     segments_done: number | null;

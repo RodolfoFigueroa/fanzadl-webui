@@ -19,8 +19,6 @@ class DownloadJob(BaseModel):
     job_id: str
     status: JobStatus
     output_name: str
-    bytes_downloaded: int | None = None
-    out_time: str | None = None
     speed: str | None = None
     percent_done: float | None = None
     segments_done: int | None = None
