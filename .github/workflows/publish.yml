@@ -3,9 +3,9 @@ name: Publish Docker image
 on:
   push:
     branches:
-      - main
-    tags:
-      - "v*"
+      - dev
+  release:
+    types: [published]
 
 jobs:
   build-and-push:

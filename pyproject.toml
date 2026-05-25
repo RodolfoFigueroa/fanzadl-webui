@@ -11,7 +11,7 @@ dependencies = [
     "m3u8>=6.0.0",
     "pydantic-settings>=2.9.1",
     "sse-starlette>=2.0.0",
-    "uvicorn>=0.47.0",
+    "uvicorn>=0.48.0",
     "yt-dlp>=2026.3.17",
 ]
 
@@ -24,4 +24,7 @@ ignore = ["D", "COM812"]
 fanzadl = { git = "https://github.com/RodolfoFigueroa/FanzaDL", tag = "v0.1.0" }
 
 [dependency-groups]
-dev = ["ipykernel<7"]
+dev = [
+    "ipykernel<7",
+    "pre-commit>=4.6.0",
+]
