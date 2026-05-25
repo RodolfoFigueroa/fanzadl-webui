@@ -18,22 +18,15 @@ A web interface for browsing your FANZA purchased video library and downloading 
 
 1. Copy the `.env` and `docker-compose.yml` files at the root of this repository.
 
-2. Edit the `.env` file and fill in your FANZA credentials:
+2. Edit the `.env` file and fill in your FANZA credentials. Then, set `DOWNLOAD_DIR` to a path to an **existing directory** in your computer
 
 ```env
+DOWNLOAD_DIR=<your path>
 FANZA_EMAIL=your@email.com
 FANZA_PASSWORD=yourpassword
 ```
 
-3. Edit the `docker-compose.yml` file and in the `volumes:` section replace `<YOUR_DOWNLOAD_DIR>` with a path to an **existing directory** in your computer:
-
-```yml
-volumes:
-  - <YOUR_DOWNLOAD_DIR>:/download
-  - image_cache:/image_cache
-```
-
-4. Start the container:
+3. Start the container:
 
 ```sh
 docker compose up -d
@@ -60,7 +53,7 @@ The **Settings** page lets you configure the number of download threads (1-32). 
 
 ## Where are my downloads?
 
-Downloaded files are saved to the whatever directory you set in **Step 3** of the quickstart. 
+Downloaded files are saved to the whatever directory you set in **Step 2** of the quickstart. 
 
 ## Updating
 
