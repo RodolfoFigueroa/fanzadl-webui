@@ -6,6 +6,10 @@ updates:
       interval: "weekly"
     allow:
       - dependency-type: "production"
+    groups:
+      all-pip-updates:
+        patterns: ["*"]
+    
   - package-ecosystem: "npm"
     directory: "/frontend/"
     schedule:
@@ -14,3 +18,6 @@ updates:
     ignore:
       - dependency-name: "svelte"
         update-types: ["version-update:semver-major"]
+    groups:
+      all-npm-updates:
+        patterns: ["*"]
