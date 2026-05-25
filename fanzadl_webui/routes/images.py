@@ -12,8 +12,8 @@ from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, get_manager
 router = APIRouter(prefix="/images")
 
 
-def _cache_path(cache_dir: Path, product_id: str) -> Path:
-    return cache_dir / f"{product_id}.jpg"
+def _cache_path(cache_dir: Path, mylibrary_id: int) -> Path:
+    return cache_dir / f"{mylibrary_id}.jpg"
 
 
 async def _fetch_and_cache(
@@ -31,8 +31,8 @@ async def precache_all(
     http_client: httpx.AsyncClient,
     cache_dir: Path,
 ) -> None:
-    for item in manager.library.values():
-        dest = _cache_path(cache_dir, item.product_id)
+    for mylibrary_id, item in manager.library.items():
+        dest = _cache_path(cache_dir, mylibrary_id)
         if dest.exists():
             continue
         try:
@@ -41,19 +41,26 @@ async def precache_all(
             pass  # best-effort; missing images will be fetched on demand
 
 
-@router.get("/{product_id}")
+def purge_stale(manager: FanzaDLManager, cache_dir: Path) -> None:
+    for cached in cache_dir.glob("*.jpg"):
+        try:
+            mylibrary_id = int(cached.stem)
+        except ValueError:
+            continue
+        if mylibrary_id not in manager.library:
+            cached.unlink()
+
+
+@router.get("/{mylibrary_id}")
 async def get_image(
-    product_id: str,
+    mylibrary_id: int,
     request: Request,
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
 ) -> FileResponse:
-    dest = _cache_path(IMAGE_CACHE_DIR, product_id)
+    dest = _cache_path(IMAGE_CACHE_DIR, mylibrary_id)
 
     if not dest.exists():
-        item = next(
-            (i for i in manager.library.values() if i.product_id == product_id),
-            None,
-        )
+        item = manager.library.get(mylibrary_id)
         if item is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

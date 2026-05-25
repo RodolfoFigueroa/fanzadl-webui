@@ -5,7 +5,7 @@ from fanzadl import FanzaDLManager
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, get_manager
-from fanzadl_webui.routes.images import precache_all
+from fanzadl_webui.routes.images import precache_all, purge_stale
 
 router = APIRouter()
 
@@ -24,6 +24,7 @@ async def refresh_library(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to refresh library: {exc}",
         ) from exc
+    await asyncio.to_thread(purge_stale, manager, IMAGE_CACHE_DIR)
     task = asyncio.create_task(
         precache_all(manager, request.app.state.http_client, IMAGE_CACHE_DIR)
     )

@@ -35,7 +35,7 @@ def _serialize(item: LibraryItem) -> LibraryItemResponse:
         product_id=item.product_id,
         title=item.title,
         content_type=item.content_type,
-        package_image_url=f"/api/images/{item.product_id}",
+        package_image_url=f"/api/images/{item.mylibrary_id}",
         parts=item.parts,
         purchase_date=item.purchase_date,
         expire=item.expire,
