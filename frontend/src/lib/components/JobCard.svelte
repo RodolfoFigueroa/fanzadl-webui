@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { DownloadJob } from "$lib/types";
-    import { stopJob, deleteJob } from "$lib/api";
+    import { stopJob } from "$lib/api";
 
     let {
         job,
@@ -20,14 +20,6 @@
             classes: "bg-sakura-800 text-sakura-400",
         },
     };
-
-    function formatBytes(bytes: number): string {
-        if (bytes >= 1_073_741_824)
-            return `${(bytes / 1_073_741_824).toFixed(2)} GB`;
-        if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
-        if (bytes >= 1_024) return `${(bytes / 1_024).toFixed(0)} KB`;
-        return `${bytes} B`;
-    }
 
     let cfg = $derived(statusConfig[job.status] ?? statusConfig.pending);
     let progressPct = $derived(
@@ -53,7 +45,7 @@
     async function handleDelete() {
         deleting = true;
         try {
-            await deleteJob(job.job_id);
+            await stopJob(job.job_id);
             onDelete?.(job.job_id);
         } catch {
             deleting = false;
@@ -75,9 +67,6 @@
             <p class="font-medium text-th-text truncate">
                 {job.output_name}.mp4
             </p>
-            {#if job.out_time && job.status === "running"}
-                <p class="text-xs text-th-text-faint mt-0.5">{job.out_time}</p>
-            {/if}
         </div>
         <span
             class="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full {cfg.classes}"
@@ -147,9 +136,6 @@
                     {/if}
                     {#if job.speed && job.status === "running"}
                         <span>{job.speed}</span>
-                    {/if}
-                    {#if job.bytes_downloaded != null}
-                        <span>{formatBytes(job.bytes_downloaded)}</span>
                     {/if}
                 </span>
             </div>

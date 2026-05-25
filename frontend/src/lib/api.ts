@@ -63,10 +63,6 @@ export async function stopJob(jobId: string): Promise<void> {
     await apiFetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
 }
 
-export async function deleteJob(jobId: string): Promise<void> {
-    await apiFetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
-}
-
 export async function deleteJobs(filter: 'finished' | 'done' | 'errored'): Promise<void> {
     await apiFetch(`/api/jobs/?filter=${filter}`, { method: 'DELETE' });
 }

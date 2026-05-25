@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,8 +16,6 @@ from .routes import download, images, library, refresh_library, streams, url
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    import asyncio
-
     IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     async with httpx.AsyncClient() as client:
         app.state.http_client = client

@@ -74,7 +74,7 @@ async def _run_download(
         )
         if proc.stdout is None:
             msg = "N_m3u8DL-RE process streams unavailable"
-            raise RuntimeError(msg)  # noqa: TRY301
+            raise RuntimeError(msg)
 
         _processes[job.job_id] = proc
         try:
@@ -95,7 +95,7 @@ async def _run_download(
             await proc.wait()
         finally:
             _processes.pop(job.job_id, None)
-    except Exception as exc:  # noqa: BLE001
+    except (OSError, asyncio.SubprocessError) as exc:
         job.error = str(exc)
         job.status = JobStatus.error
         _publish(job, queues)

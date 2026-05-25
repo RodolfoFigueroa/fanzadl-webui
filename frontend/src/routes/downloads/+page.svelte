@@ -138,7 +138,7 @@
 			<button
 				onclick={() => handleBulkDelete("finished")}
 				class="text-xs px-3 py-1.5 rounded-lg border border-th-border text-th-text-dim
-					hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+					hover:bg-gray-500/15 transition-colors"
 			>
 				Delete all finished
 			</button>
