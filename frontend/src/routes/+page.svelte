@@ -1,13 +1,14 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
-import { getLibrary, refreshLibrary } from '$lib/api';
+import { getCachedLibrary, getLibrary, refreshLibrary } from '$lib/api';
 import DownloadModal from '$lib/components/DownloadModal.svelte';
 import VideoCard from '$lib/components/VideoCard.svelte';
 import type { LibraryItem } from '$lib/types';
 
-let library = $state<LibraryItem[]>([]);
-let loading = $state(true);
+const _cached = getCachedLibrary();
+let library = $state<LibraryItem[]>(_cached ? Object.values(_cached) : []);
+let loading = $state(_cached === null);
 let error = $state('');
 let refreshing = $state(false);
 let selectedItem = $state<LibraryItem | null>(null);

@@ -66,8 +66,16 @@ export async function logout(): Promise<void> {
     await apiFetch('/api/auth/logout', { method: 'POST' });
 }
 
+let _libraryCache: Record<string, LibraryItem> | null = null;
+
+export function getCachedLibrary(): Record<string, LibraryItem> | null {
+    return _libraryCache;
+}
+
 export async function getLibrary(): Promise<Record<string, LibraryItem>> {
-    return apiFetch('/api/library/');
+    const data = await apiFetch<Record<string, LibraryItem>>('/api/library/');
+    _libraryCache = data;
+    return data;
 }
 
 export async function refreshLibrary(): Promise<void> {
