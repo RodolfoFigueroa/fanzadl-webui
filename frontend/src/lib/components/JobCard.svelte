@@ -21,7 +21,18 @@ const statusConfig: Record<string, { label: string; classes: string }> = {
     },
 };
 
-let cfg = $derived(statusConfig[job.status] ?? statusConfig.pending);
+let isMuxing = $derived(
+    job.status === 'running' &&
+        job.segments_done != null &&
+        job.segments_total != null &&
+        job.segments_total - job.segments_done <= 1,
+);
+
+let cfg = $derived(
+    isMuxing
+        ? { label: 'Processing…', classes: 'bg-blue-900/60 text-blue-300' }
+        : (statusConfig[job.status] ?? statusConfig.pending),
+);
 let progressPct = $derived(
     job.status === 'done' ? 100 : (job.percent_done ?? 0),
 );
@@ -112,27 +123,35 @@ async function copyError() {
     {#if showProgress}
         <div class="space-y-1">
             <div class="w-full bg-th-input rounded-full h-1.5 overflow-hidden">
-                <div
-                    class="h-1.5 rounded-full transition-all duration-500
+                {#if isMuxing}
+                    <div class="h-1.5 rounded-full bg-blue-400 animate-pulse w-full"></div>
+                {:else}
+                    <div
+                        class="h-1.5 rounded-full transition-all duration-500
 					{job.status === 'done' ? 'bg-green-500' : 'bg-sakura-400'}"
-                    style="width: {progressPct}%"
-                ></div>
+                        style="width: {progressPct}%"
+                    ></div>
+                {/if}
             </div>
             <div
                 class="flex items-center justify-between text-xs text-th-text-dim"
             >
                 <span>
-                    {job.percent_done != null
-                        ? `${job.percent_done.toFixed(1)}%`
-                        : "Starting…"}
+                    {#if isMuxing}
+                        Muxing…
+                    {:else if job.percent_done != null}
+                        {job.percent_done.toFixed(1)}%
+                    {:else}
+                        Starting…
+                    {/if}
                 </span>
                 <span class="flex gap-3">
-                    {#if job.segments_done != null && job.segments_total != null}
+                    {#if job.segments_done != null && job.segments_total != null && !isMuxing}
                         <span class="text-th-text-faint"
                             >{job.segments_done}/{job.segments_total} segs</span
                         >
                     {/if}
-                    {#if job.speed && job.status === "running"}
+                    {#if job.speed && job.status === "running" && !isMuxing}
                         <span>{job.speed}</span>
                     {/if}
                 </span>
