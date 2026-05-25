@@ -1,11 +1,20 @@
 <script lang="ts">
 import { onDestroy, onMount } from 'svelte';
-import { deleteJobs, getJobs, stopAllJobs, subscribeJobEvents } from '$lib/api';
+import {
+    deleteJobs,
+    getCachedJobs,
+    getJobs,
+    stopAllJobs,
+    subscribeJobEvents,
+} from '$lib/api';
 import JobCard from '$lib/components/JobCard.svelte';
 import type { DownloadJob } from '$lib/types';
 
-let jobs = $state<Record<string, DownloadJob>>({});
-let loading = $state(true);
+const _cached = getCachedJobs();
+let jobs = $state<Record<string, DownloadJob>>(
+    _cached ? Object.fromEntries(_cached.map((j) => [j.job_id, j])) : {},
+);
+let loading = $state(_cached === null);
 let error = $state('');
 
 const controllers = new Map<string, AbortController>();

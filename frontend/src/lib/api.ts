@@ -106,8 +106,16 @@ export async function startDownload(
     });
 }
 
+let _jobsCache: DownloadJob[] | null = null;
+
+export function getCachedJobs(): DownloadJob[] | null {
+    return _jobsCache;
+}
+
 export async function getJobs(): Promise<DownloadJob[]> {
-    return apiFetch('/api/jobs/');
+    const data = await apiFetch<DownloadJob[]>('/api/jobs/');
+    _jobsCache = data;
+    return data;
 }
 
 export async function stopJob(jobId: string): Promise<void> {
@@ -124,17 +132,27 @@ export async function stopAllJobs(): Promise<void> {
     await apiFetch('/api/jobs/?filter=active', { method: 'DELETE' });
 }
 
+let _settingsCache: AppSettings | null = null;
+
+export function getCachedSettings(): AppSettings | null {
+    return _settingsCache;
+}
+
 export async function getSettings(): Promise<AppSettings> {
-    return apiFetch('/api/settings/');
+    const data = await apiFetch<AppSettings>('/api/settings/');
+    _settingsCache = data;
+    return data;
 }
 
 export async function updateSettings(
     patch: Partial<AppSettings>,
 ): Promise<AppSettings> {
-    return apiFetch('/api/settings/', {
+    const data = await apiFetch<AppSettings>('/api/settings/', {
         method: 'PATCH',
         body: JSON.stringify(patch),
     });
+    _settingsCache = data;
+    return data;
 }
 
 export function subscribeJobEvents(

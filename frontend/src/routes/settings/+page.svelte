@@ -2,6 +2,7 @@
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import {
+    getCachedSettings,
     getSettings,
     getThreadCount,
     logout,
@@ -18,7 +19,9 @@ async function handleLogout() {
 }
 
 let threadCount = $state(getThreadCount());
-let maxConcurrentDownloads = $state(3);
+let maxConcurrentDownloads = $state(
+    getCachedSettings()?.max_concurrent_downloads ?? 3,
+);
 
 onMount(async () => {
     const s = await getSettings();
