@@ -23,6 +23,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
         throw new Error(`HTTP ${response.status}: ${await response.text()}`);
     }
 
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+        return undefined as T;
+    }
+
     return response.json() as Promise<T>;
 }
 
@@ -57,6 +61,14 @@ export async function getJobs(): Promise<DownloadJob[]> {
 
 export async function stopJob(jobId: string): Promise<void> {
     await apiFetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
+}
+
+export async function deleteJob(jobId: string): Promise<void> {
+    await apiFetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
+}
+
+export async function deleteJobs(filter: 'finished' | 'done' | 'errored'): Promise<void> {
+    await apiFetch(`/api/jobs/?filter=${filter}`, { method: 'DELETE' });
 }
 
 export function subscribeJobEvents(

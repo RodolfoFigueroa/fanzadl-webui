@@ -1,10 +1,10 @@
 import asyncio
 import re
 from collections.abc import AsyncGenerator
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fanzadl.constants import USER_AGENT
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
@@ -154,8 +154,32 @@ def get_job(
     return job
 
 
+@router.delete("/jobs/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_jobs(
+    filter: Annotated[
+        Literal["finished", "done", "errored"],
+        Query(
+            description="Which finished jobs to delete: finished=all, done=successful only, errored=error+cancelled"
+        ),
+    ],
+    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+    queues: Annotated[Queues, Depends(get_queues)],
+) -> None:
+    if filter == "done":
+        target_statuses = {JobStatus.done}
+    elif filter == "errored":
+        target_statuses = {JobStatus.error, JobStatus.cancelled}
+    else:  # finished
+        target_statuses = {JobStatus.done, JobStatus.error, JobStatus.cancelled}
+
+    to_delete = [jid for jid, j in jobs.items() if j.status in target_statuses]
+    for jid in to_delete:
+        del jobs[jid]
+        queues.pop(jid, None)
+
+
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def cancel_job(
+async def cancel_or_delete_job(
     job_id: str,
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],
@@ -166,6 +190,8 @@ async def cancel_job(
             status_code=status.HTTP_404_NOT_FOUND, detail="Job not found"
         )
     if job.status in (JobStatus.done, JobStatus.error, JobStatus.cancelled):
+        del jobs[job_id]
+        queues.pop(job_id, None)
         return
     job.status = JobStatus.cancelled
     proc = _processes.get(job_id)

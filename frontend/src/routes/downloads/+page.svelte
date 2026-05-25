@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from "svelte";
-	import { getJobs, subscribeJobEvents } from "$lib/api";
+	import { getJobs, subscribeJobEvents, deleteJobs } from "$lib/api";
 	import JobCard from "$lib/components/JobCard.svelte";
 	import type { DownloadJob } from "$lib/types";
 
@@ -71,13 +71,80 @@
 				(statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4),
 		),
 	);
+
+	let hasFinished = $derived(
+		Object.values(jobs).some((j) =>
+			["done", "error", "cancelled"].includes(j.status),
+		),
+	);
+	let hasDone = $derived(
+		Object.values(jobs).some((j) => j.status === "done"),
+	);
+	let hasErrored = $derived(
+		Object.values(jobs).some((j) =>
+			["error", "cancelled"].includes(j.status),
+		),
+	);
+
+	function handleJobDeleted(jobId: string) {
+		const { [jobId]: _, ...rest } = jobs;
+		jobs = rest;
+	}
+
+	async function handleBulkDelete(filter: "finished" | "done" | "errored") {
+		await deleteJobs(filter);
+		const statuses =
+			filter === "done"
+				? ["done"]
+				: filter === "errored"
+					? ["error", "cancelled"]
+					: ["done", "error", "cancelled"];
+		const updated = { ...jobs };
+		for (const [id, job] of Object.entries(updated)) {
+			if (statuses.includes(job.status)) {
+				delete updated[id];
+			}
+		}
+		jobs = updated;
+	}
 </script>
 
 <svelte:head>
 	<title>Downloads — FanzaDL</title>
 </svelte:head>
 
-<h1 class="text-2xl font-bold mb-6">Downloads</h1>
+<div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
+	<h1 class="text-2xl font-bold">Downloads</h1>
+	{#if hasFinished}
+		<div class="flex items-center gap-2 flex-wrap">
+			{#if hasDone}
+				<button
+					onclick={() => handleBulkDelete("done")}
+					class="text-xs px-3 py-1.5 rounded-lg border border-green-800 text-green-400
+						hover:bg-green-900/30 transition-colors"
+				>
+					Delete successful
+				</button>
+			{/if}
+			{#if hasErrored}
+				<button
+					onclick={() => handleBulkDelete("errored")}
+					class="text-xs px-3 py-1.5 rounded-lg border border-red-800 text-red-400
+						hover:bg-red-900/30 transition-colors"
+				>
+					Delete errored/stopped
+				</button>
+			{/if}
+			<button
+				onclick={() => handleBulkDelete("finished")}
+				class="text-xs px-3 py-1.5 rounded-lg border border-th-border text-th-text-dim
+					hover:bg-th-surface-hover transition-colors"
+			>
+				Delete all finished
+			</button>
+		</div>
+	{/if}
+</div>
 
 {#if loading}
 	<div class="text-th-text-dim">Loading…</div>
@@ -99,7 +166,7 @@
 {:else}
 	<div class="space-y-3 max-w-2xl">
 		{#each sortedJobs as job (job.job_id)}
-			<JobCard {job} />
+			<JobCard {job} onDelete={handleJobDeleted} />
 		{/each}
 	</div>
 {/if}

@@ -1,8 +1,8 @@
 <script lang="ts">
     import type { DownloadJob } from "$lib/types";
-    import { stopJob } from "$lib/api";
+    import { stopJob, deleteJob } from "$lib/api";
 
-    let { job }: { job: DownloadJob } = $props();
+    let { job, onDelete }: { job: DownloadJob; onDelete?: (jobId: string) => void } = $props();
 
     const statusConfig: Record<string, { label: string; classes: string }> = {
         pending: { label: "Pending", classes: "bg-sakura-800 text-sakura-300" },
@@ -36,6 +36,7 @@
 
     let copied = $state(false);
     let stopping = $state(false);
+    let deleting = $state(false);
 
     async function handleStop() {
         stopping = true;
@@ -43,6 +44,16 @@
             await stopJob(job.job_id);
         } catch {
             stopping = false;
+        }
+    }
+
+    async function handleDelete() {
+        deleting = true;
+        try {
+            await deleteJob(job.job_id);
+            onDelete?.(job.job_id);
+        } catch {
+            deleting = false;
         }
     }
 
@@ -80,6 +91,18 @@
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <rect x="6" y="6" width="12" height="12" rx="1" />
+                </svg>
+            </button>
+        {:else if job.status === "done" || job.status === "error" || job.status === "cancelled"}
+            <button
+                onclick={handleDelete}
+                disabled={deleting}
+                aria-label="Delete download"
+                class="flex-shrink-0 p-1 rounded text-gray-500 hover:text-red-400
+                    hover:bg-red-900/30 disabled:opacity-40 transition-colors"
+            >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
             </button>
         {/if}
