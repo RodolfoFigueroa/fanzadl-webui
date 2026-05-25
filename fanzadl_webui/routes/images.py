@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from pathlib import Path
 from typing import Annotated
 
@@ -8,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse
 
 from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, get_manager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/images")
 
@@ -46,6 +49,7 @@ def purge_stale(manager: FanzaDLManager, cache_dir: Path) -> None:
         try:
             mylibrary_id = int(cached.stem)
         except ValueError:
+            cached.unlink()
             continue
         if mylibrary_id not in manager.library:
             cached.unlink()
