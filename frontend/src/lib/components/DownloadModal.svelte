@@ -41,7 +41,7 @@
         partNumbers.map((p) =>
             partNumbers.length === 1
                 ? baseFilename
-                : `${baseFilename}_Part_${p}`,
+                : `${baseFilename}_${String(p).padStart(2, "0")}`,
         ),
     );
 
