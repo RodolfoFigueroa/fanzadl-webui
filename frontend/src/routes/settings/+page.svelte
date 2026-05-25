@@ -22,10 +22,12 @@ let threadCount = $state(getThreadCount());
 let maxConcurrentDownloads = $state(
     getCachedSettings()?.max_concurrent_downloads ?? 3,
 );
+let logLevel = $state(getCachedSettings()?.log_level ?? 'INFO');
 
 onMount(async () => {
     const s = await getSettings();
     maxConcurrentDownloads = s.max_concurrent_downloads;
+    logLevel = s.log_level;
 });
 </script>
 
@@ -91,6 +93,31 @@ onMount(async () => {
 					focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
 					transition-shadow"
             />
+        </div>
+        <div>
+            <label
+                class="block text-sm font-medium text-th-text-muted mb-1.5"
+                for="log-level"
+            >
+                Log level
+            </label>
+            <p class="text-xs text-th-text-dim mb-2">
+                Controls the verbosity of server-side logging. DEBUG produces
+                the most output; ERROR only logs failures.
+            </p>
+            <select
+                id="log-level"
+                bind:value={logLevel}
+                onchange={() => updateSettings({ log_level: logLevel })}
+                class="w-32 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
+					focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
+					transition-shadow"
+            >
+                <option value="DEBUG">DEBUG</option>
+                <option value="INFO">INFO</option>
+                <option value="WARNING">WARNING</option>
+                <option value="ERROR">ERROR</option>
+            </select>
         </div>
     </div>
 

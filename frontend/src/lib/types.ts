@@ -34,4 +34,5 @@ export interface StreamVariant {
 
 export interface AppSettings {
     max_concurrent_downloads: number;
+    log_level: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
 }

@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated, Literal
 
 import httpx
@@ -19,6 +20,8 @@ class StreamVariant(BaseModel):
     uri: str
 
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/streams")
 
 
@@ -38,11 +41,20 @@ async def get_streams(
         response = await http_client.get(playlist_url, follow_redirects=True)
         response.raise_for_status()
     except httpx.HTTPStatusError as e:
+        logger.exception(
+            "Failed to fetch playlist for video %s: HTTP %s",
+            video_id,
+            e.response.status_code,
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to fetch playlist: {e.response.status_code}",
         ) from e
     except httpx.RequestError as e:
+        logger.exception(
+            "Failed to reach playlist URL for video %s",
+            video_id,
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to reach playlist URL: {e}",

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -26,6 +27,10 @@ from .routes import (
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
     async with httpx.AsyncClient() as client:
         app.state.http_client = client
@@ -33,6 +38,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.jobs: dict = {}
         app.state.queues: dict = {}
         app.state.max_concurrent_downloads: int = 3
+        app.state.log_level: str = "INFO"
         app.state.download_slot_condition = asyncio.Condition()
         app.state.background_tasks: set[asyncio.Task] = set()
         app.state.login_lock = asyncio.Lock()
