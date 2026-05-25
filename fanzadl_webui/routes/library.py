@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from fanzadl import FanzaDLManager
@@ -22,6 +22,7 @@ class LibraryItemResponse(BaseModel):
     package_image_url: str
     parts: int
     purchase_date: datetime
+    expire: date
     trans_type: Literal["download", "stream"]
 
 
@@ -37,6 +38,7 @@ def _serialize(item: LibraryItem) -> LibraryItemResponse:
         package_image_url=f"/api/images/{item.product_id}",
         parts=item.parts,
         purchase_date=item.purchase_date,
+        expire=item.expire,
         trans_type=item.trans_type,
     )
 

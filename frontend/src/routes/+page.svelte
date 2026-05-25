@@ -12,15 +12,40 @@
 	let refreshing = $state(false);
 	let selectedItem = $state<LibraryItem | null>(null);
 
+	type SortField = "title" | "purchase_date" | "parts" | "expire";
+	let sortField = $state<SortField>("purchase_date");
+	let sortAsc = $state(false);
+
+	function daysLeft(expireStr: string): number {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const expire = new Date(expireStr + "T00:00:00");
+		return Math.round((expire.getTime() - today.getTime()) / 86_400_000);
+	}
+
+	const sortedLibrary = $derived(
+		[...library].sort((a, b) => {
+			let cmp = 0;
+			if (sortField === "title") {
+				cmp = a.title.localeCompare(b.title);
+			} else if (sortField === "purchase_date") {
+				cmp =
+					new Date(a.purchase_date).getTime() -
+					new Date(b.purchase_date).getTime();
+			} else if (sortField === "parts") {
+				cmp = (a.parts || 1) - (b.parts || 1);
+			} else if (sortField === "expire") {
+				cmp = daysLeft(a.expire) - daysLeft(b.expire);
+			}
+			return sortAsc ? cmp : -cmp;
+		}),
+	);
+
 	async function loadLibrary() {
 		error = "";
 		try {
 			const data = await getLibrary();
-			library = Object.values(data).sort(
-				(a, b) =>
-					new Date(b.purchase_date).getTime() -
-					new Date(a.purchase_date).getTime(),
-			);
+			library = Object.values(data);
 		} catch (e) {
 			error = e instanceof Error ? e.message : "Failed to load library";
 		} finally {
@@ -103,10 +128,30 @@
 		</p>
 	</div>
 {:else}
+	<div class="flex items-center gap-2 mb-4">
+		<select
+			bind:value={sortField}
+			class="bg-th-input border border-th-border text-th-text text-sm rounded-lg
+				py-1.5 px-3 focus:outline-none focus:border-th-border-strong"
+		>
+			<option value="purchase_date">Date purchased</option>
+			<option value="title">Title</option>
+			<option value="parts">Part count</option>
+			<option value="expire">Days left</option>
+		</select>
+		<button
+			onclick={() => (sortAsc = !sortAsc)}
+			title={sortAsc ? "Ascending" : "Descending"}
+			class="bg-th-input border border-th-border hover:border-th-border-strong text-th-text
+				text-sm rounded-lg py-1.5 px-3 transition-colors select-none"
+		>
+			{sortAsc ? "↑" : "↓"}
+		</button>
+	</div>
 	<div
 		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
 	>
-		{#each library as item (item.mylibrary_id)}
+		{#each sortedLibrary as item (item.mylibrary_id)}
 			<VideoCard {item} onDownload={(i) => (selectedItem = i)} />
 		{/each}
 	</div>

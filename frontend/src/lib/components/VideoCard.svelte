@@ -18,6 +18,15 @@
 			day: "numeric",
 		});
 	}
+
+	function daysLeft(expireStr: string): number {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const expire = new Date(expireStr + "T00:00:00");
+		return Math.round((expire.getTime() - today.getTime()) / 86_400_000);
+	}
+
+	const days = $derived(daysLeft(item.expire));
 </script>
 
 <div
@@ -73,6 +82,33 @@
 				{(item.parts || 1) === 1 ? "part" : "parts"}</span
 			>
 			<span>{formatDate(item.purchase_date)}</span>
+		</div>
+		<div
+			class="text-xs flex items-center gap-1
+				{days <= 1 ? 'text-amber-400 font-semibold' : 'text-th-text-dim'}"
+		>
+			<svg
+				class="w-3 h-3 shrink-0"
+				fill="none"
+				stroke="currentColor"
+				viewBox="0 0 24 24"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+				/>
+			</svg>
+			{#if days < 0}
+				<span>Expired</span>
+			{:else if days === 0}
+				<span>Expires today</span>
+			{:else if days === 1}
+				<span>Expires tomorrow</span>
+			{:else}
+				<span>Expires in {days} days</span>
+			{/if}
 		</div>
 		<button
 			onclick={() => onDownload(item)}
