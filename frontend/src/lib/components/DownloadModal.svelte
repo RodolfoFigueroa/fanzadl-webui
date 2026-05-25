@@ -1,8 +1,14 @@
 <script lang="ts">
 import { onMount, untrack } from 'svelte';
 import { goto } from '$app/navigation';
-import { getStreams, getThreadCount, startDownload } from '$lib/api';
-import type { LibraryItem, StreamVariant } from '$lib/types';
+import {
+    checkFilename,
+    getJobs,
+    getStreams,
+    getThreadCount,
+    startDownload,
+} from '$lib/api';
+import type { DownloadJob, LibraryItem, StreamVariant } from '$lib/types';
 
 let {
     item,
@@ -51,6 +57,12 @@ let submitting = $state(false);
 let submitError = $state('');
 let copiedPerPart = $state<boolean[]>(partNumbers.map(() => false));
 
+let activeJobs = $state<DownloadJob[]>([]);
+let filenameWarnings = $state<string[]>(partNumbers.map(() => ''));
+const _checkTimers: ReturnType<typeof setTimeout>[] = partNumbers.map(
+    () => 0 as unknown as ReturnType<typeof setTimeout>,
+);
+
 async function copyUrl(i: number) {
     const uri = selectedPerPart[i]?.uri;
     if (!uri) return;
@@ -68,6 +80,30 @@ async function copyUrl(i: number) {
 let enabledCount = $derived(enabledParts.filter(Boolean).length);
 let allEnabled = $derived(enabledCount === partNumbers.length);
 
+let filenameErrors = $derived(
+    partNumbers.map((_, i) => {
+        if (!enabledParts[i]) return '';
+        const name = filenamesPerPart[i];
+        if (!name) return '';
+        if (
+            activeJobs.some(
+                (j) =>
+                    (j.status === 'pending' || j.status === 'running') &&
+                    j.output_name === name,
+            )
+        )
+            return 'This filename is already in the download queue.';
+        if (
+            partNumbers.some(
+                (_, j) =>
+                    j !== i && enabledParts[j] && filenamesPerPart[j] === name,
+            )
+        )
+            return 'This filename is used by another part in this download.';
+        return '';
+    }),
+);
+
 let canSubmit = $derived(
     !loadingStreams &&
         !streamError &&
@@ -75,10 +111,41 @@ let canSubmit = $derived(
         enabledCount > 0 &&
         partNumbers.every(
             (_, i) => !enabledParts[i] || selectedPerPart[i]?.bandwidth != null,
-        ),
+        ) &&
+        filenameErrors.every((e, i) => !enabledParts[i] || !e),
 );
 
+function scheduleFilenameCheck(i: number, name: string) {
+    clearTimeout(_checkTimers[i]);
+    if (!name) {
+        const updated = [...filenameWarnings];
+        updated[i] = '';
+        filenameWarnings = updated;
+        return;
+    }
+    _checkTimers[i] = setTimeout(async () => {
+        try {
+            const { file_exists } = await checkFilename(name);
+            const updated = [...filenameWarnings];
+            updated[i] = file_exists
+                ? 'A file with this name already exists and will be overwritten.'
+                : '';
+            filenameWarnings = updated;
+        } catch {
+            // best-effort check; silently ignore errors
+        }
+    }, 500);
+}
+
 onMount(async () => {
+    void getJobs()
+        .then((jobs) => {
+            activeJobs = jobs;
+        })
+        .catch(() => {
+            // best-effort; silently ignore
+        });
+
     try {
         const results: StreamVariant[][] = [];
         for (const p of partNumbers) {
@@ -297,9 +364,16 @@ function handleKeydown(e: KeyboardEvent) {
                                     id="filename-{i}"
                                     type="text"
                                     bind:value={filenamesPerPart[i]}
+                                    oninput={(e) =>
+                                        scheduleFilenameCheck(
+                                            i,
+                                            (e.target as HTMLInputElement).value,
+                                        )}
                                     class="flex-1 min-w-0 bg-th-input-nested border border-th-border-input rounded-l-lg
 										px-2 py-1.5 text-sm text-th-text focus:outline-none focus:ring-2
-										focus:ring-th-border-strong"
+										{filenameErrors[i]
+                                            ? 'focus:ring-red-500 border-red-500'
+                                            : 'focus:ring-th-border-strong'}"
                                 />
                                 <span
                                     class="flex-shrink-0 bg-th-input-nested border border-l-0 border-th-border-input
@@ -308,6 +382,15 @@ function handleKeydown(e: KeyboardEvent) {
                                     .mp4
                                 </span>
                             </div>
+                            {#if filenameErrors[i]}
+                                <p class="text-xs text-red-400 mt-1">
+                                    {filenameErrors[i]}
+                                </p>
+                            {:else if filenameWarnings[i]}
+                                <p class="text-xs text-yellow-400 mt-1">
+                                    {filenameWarnings[i]}
+                                </p>
+                            {/if}
                         </div>
                     </div>
                 {/each}

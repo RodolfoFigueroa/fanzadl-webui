@@ -195,6 +195,15 @@ async def _run_download(  # noqa: PLR0913
             concurrency.condition.notify_all()
 
 
+class FilenameCheckResponse(BaseModel):
+    file_exists: bool
+
+
+@router.get("/download/check-filename")
+def check_filename(name: str = Query(..., min_length=1)) -> FilenameCheckResponse:
+    return FilenameCheckResponse(file_exists=(DOWNLOAD_DIR / f"{name}.mp4").exists())
+
+
 @router.post("/download/")
 async def start_download(
     request: Request,

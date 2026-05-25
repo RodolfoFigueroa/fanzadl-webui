@@ -71,18 +71,7 @@ onDestroy(() => {
     controllers.clear();
 });
 
-const statusOrder: Record<string, number> = {
-    running: 0,
-    pending: 1,
-    error: 2,
-    done: 3,
-};
-
-let sortedJobs = $derived(
-    Object.values(jobs).sort(
-        (a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4),
-    ),
-);
+let sortedJobs = $derived(Object.values(jobs));
 
 let hasFinished = $derived(
     Object.values(jobs).some((j) =>

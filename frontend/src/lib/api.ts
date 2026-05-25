@@ -91,6 +91,13 @@ export async function getStreams(
     return apiFetch(`/api/streams/?${params}`);
 }
 
+export async function checkFilename(
+    name: string,
+): Promise<{ file_exists: boolean }> {
+    const params = new URLSearchParams({ name });
+    return apiFetch(`/api/download/check-filename?${params}`);
+}
+
 export async function startDownload(
     videoId: number,
     part: number,
