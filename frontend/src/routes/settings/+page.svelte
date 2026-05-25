@@ -1,11 +1,21 @@
 <script lang="ts">
     import { onMount } from "svelte";
+    import { goto } from "$app/navigation";
     import {
         getSettings,
         getThreadCount,
         setThreadCount,
         updateSettings,
+        logout,
     } from "$lib/api";
+
+    async function handleLogout() {
+        try {
+            await logout();
+        } finally {
+            goto("/login");
+        }
+    }
 
     let threadCount = $state(getThreadCount());
     let maxConcurrentDownloads = $state(3);
@@ -20,7 +30,7 @@
     <title>Settings — FanzaDL</title>
 </svelte:head>
 
-<div class="max-w-md mx-auto mt-16">
+<div class="max-w-md mx-auto mt-6 sm:mt-16">
     <h1 class="text-2xl font-bold mb-6">Settings</h1>
     <div
         class="bg-th-surface rounded-xl p-6 border border-th-border space-y-4 mt-4"
@@ -80,4 +90,12 @@
             />
         </div>
     </div>
+
+    <button
+        onclick={handleLogout}
+        class="sm:hidden mt-4 w-full text-sm text-th-text-dim hover:text-red-400 border border-th-border
+            hover:border-red-800 rounded-xl py-3 transition-colors"
+    >
+        Logout
+    </button>
 </div>

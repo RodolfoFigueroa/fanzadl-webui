@@ -34,9 +34,7 @@
     <title>Sign in — FanzaDL</title>
 </svelte:head>
 
-<div
-    class="min-h-screen bg-th-base text-th-text flex items-center justify-center"
->
+<div class="flex-1 flex items-center justify-center">
     <div
         class="bg-th-surface border border-th-border rounded-xl p-8 w-full max-w-sm shadow-md"
     >
