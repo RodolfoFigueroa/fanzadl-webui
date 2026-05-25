@@ -65,9 +65,7 @@ export function subscribeJobEvents(
     onError?: (err: unknown) => void,
     signal?: AbortSignal
 ): void {
-    const key = getApiKey() ?? '';
     void fetchEventSource(`/api/jobs/${jobId}/events`, {
-        headers: { 'X-API-Key': key },
         signal,
         onmessage(event) {
             try {
