@@ -247,7 +247,7 @@ wheels = [
 [[package]]
 name = "fanzadl"
 version = "0.1.0"
-source = { git = "https://github.com/RodolfoFigueroa/FanzaDL?tag=v0.1.0#bea781b54ad1e92736806e91ca319b810a1ff870" }
+source = { git = "https://github.com/RodolfoFigueroa/FanzaDL?tag=v0.1.3#7c36d06e3a32b3fa56eada5baf52472fe00ce81e" }
 dependencies = [
     { name = "pydantic" },
     { name = "requests" },
@@ -265,7 +265,6 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "sse-starlette" },
     { name = "uvicorn" },
-    { name = "yt-dlp" },
 ]
 
 [package.dev-dependencies]
@@ -276,14 +275,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fanzadl", git = "https://github.com/RodolfoFigueroa/FanzaDL?tag=v0.1.0" },
+    { name = "fanzadl", git = "https://github.com/RodolfoFigueroa/FanzaDL?tag=v0.1.3" },
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "m3u8", specifier = ">=6.0.0" },
     { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "sse-starlette", specifier = ">=2.0.0" },
     { name = "uvicorn", specifier = ">=0.48.0" },
-    { name = "yt-dlp", specifier = ">=2026.3.17" },
 ]
 
 [package.metadata.requires-dev]
@@ -993,13 +991,4 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2c/ee/afaf0f85a9a18fe47a67f1e4422ed6cf1fe642f0ae0a2f81166231303c52/wcwidth-0.7.0.tar.gz", hash = "sha256:90e3a7ea092341c44b99562e75d09e4d5160fe7a3974c6fb842a101a95e7eed0", size = 182132, upload-time = "2026-05-02T16:04:12.653Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/52/e465037f5375f43533d1a80b6923955201596a99142ed524d77b571a1418/wcwidth-0.7.0-py3-none-any.whl", hash = "sha256:5d69154c429a82910e241c738cd0e2976fac8a2dd47a1a805f4afed1c0f136f2", size = 110825, upload-time = "2026-05-02T16:04:11.033Z" },
-]
-
-[[package]]
-name = "yt-dlp"
-version = "2026.3.17"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/8b/34/7c6b4e3f89cb6416d2cd7ab6dab141a1df97ab0fb22d15816db2c92148c9/yt_dlp-2026.3.17.tar.gz", hash = "sha256:ba7aa31d533f1ffccfe70e421596d7ca8ff0bf1398dc6bb658b7d9dec057d2c9", size = 3119221, upload-time = "2026-03-17T23:43:00.244Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cd/13/5093bcb954878e50f7217fd2ab94282b53934022e4e4a03265582da83bf5/yt_dlp-2026.3.17-py3-none-any.whl", hash = "sha256:32992db94303a8a5d211a183f2174834fe7f8c29d83ed2e7a324eae97a8f26d8", size = 3315134, upload-time = "2026-03-17T23:42:57.863Z" },
 ]

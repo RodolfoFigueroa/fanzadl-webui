@@ -1,16 +1,13 @@
-from typing import TYPE_CHECKING
-
+from fanzadl import FanzaDLManager
+from fanzadl.models.video.video import VideoQualityModel
+from fanzadl.models.video.vr import VRQualityModel
 from fastapi import HTTPException, status
-
-if TYPE_CHECKING:
-    from fanzadl import FanzaDLManager
-    from fanzadl.models import VideoLibraryItemContentsModel, VRLibraryItemContentsModel
 
 
 def get_quality_obj(
     video_id: int,
-    manager: "FanzaDLManager",
-) -> "VideoLibraryItemContentsModel | VRLibraryItemContentsModel":
+    manager: FanzaDLManager,
+) -> VideoQualityModel | VRQualityModel:
     """Return the highest-quality download/stream object for a library item.
 
     Args:
@@ -28,4 +25,11 @@ def get_quality_obj(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Video not found"
         )
-    return item.download_highest or item.stream_highest
+
+    out = item.highest
+    if out is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No downloadable/streamable qualities found for this video",
+        )
+    return out

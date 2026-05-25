@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
+from starlette.types import Scope
 
 from .dependencies import IMAGE_CACHE_DIR, settings
 from .routes import download, images, library, refresh_library, streams, url
@@ -43,7 +44,7 @@ _dist = Path(__file__).parent.parent / "frontend" / "dist"
 if _dist.is_dir():
 
     class SPAStaticFiles(StaticFiles):
-        async def get_response(self, path: str, scope: dict) -> Response:
+        async def get_response(self, path: str, scope: Scope) -> Response:
             try:
                 return await super().get_response(path, scope)
             except StarletteHTTPException as exc:

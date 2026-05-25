@@ -95,7 +95,7 @@ async def _run_download(
             await proc.wait()
         finally:
             _processes.pop(job.job_id, None)
-    except (OSError, asyncio.SubprocessError) as exc:
+    except Exception as exc:  # noqa: BLE001
         job.error = str(exc)
         job.status = JobStatus.error
         _publish(job, queues)
