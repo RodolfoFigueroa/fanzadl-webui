@@ -247,7 +247,7 @@ wheels = [
 [[package]]
 name = "fanzadl"
 version = "0.1.0"
-source = { git = "https://github.com/RodolfoFigueroa/FanzaDL?tag=v0.1.3#7c36d06e3a32b3fa56eada5baf52472fe00ce81e" }
+source = { git = "https://github.com/RodolfoFigueroa/FanzaDL?tag=v0.1.5#079c17685f745039fa3ff80751089fe8880fcbdc" }
 dependencies = [
     { name = "pydantic" },
     { name = "requests" },
@@ -275,7 +275,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fanzadl", git = "https://github.com/RodolfoFigueroa/FanzaDL?tag=v0.1.3" },
+    { name = "fanzadl", git = "https://github.com/RodolfoFigueroa/FanzaDL?tag=v0.1.5" },
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "m3u8", specifier = ">=6.0.0" },

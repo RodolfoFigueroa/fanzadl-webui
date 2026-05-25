@@ -1,3 +1,4 @@
+import { goto } from '$app/navigation';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import type { AppSettings, DownloadJob, LibraryItem, StreamVariant } from './types';
 
@@ -20,7 +21,19 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(path, { ...init, headers });
 
     if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        if (response.status === 401 && path !== '/api/auth/login') {
+            void goto('/login');
+            throw new Error('Unauthenticated');
+        }
+        const text = await response.text();
+        let message: string;
+        try {
+            const json = JSON.parse(text) as { detail?: string };
+            message = typeof json.detail === 'string' ? json.detail : text;
+        } catch {
+            message = text;
+        }
+        throw new Error(message);
     }
 
     if (response.status === 204 || response.headers.get('content-length') === '0') {
@@ -28,6 +41,21 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     }
 
     return response.json() as Promise<T>;
+}
+
+export async function getAuthStatus(): Promise<{ authenticated: boolean }> {
+    return apiFetch('/api/auth/status');
+}
+
+export async function login(email: string, password: string): Promise<void> {
+    await apiFetch('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+    });
+}
+
+export async function logout(): Promise<void> {
+    await apiFetch('/api/auth/logout', { method: 'POST' });
 }
 
 export async function getLibrary(): Promise<Record<string, LibraryItem>> {

@@ -53,6 +53,23 @@ def _close_streams(job_id: str, queues: Queues) -> None:
         q.put_nowait(None)
 
 
+async def cancel_active_jobs(
+    jobs: dict[str, DownloadJob],
+    queues: Queues,
+    condition: asyncio.Condition,
+) -> None:
+    for job in list(jobs.values()):
+        if job.status in (JobStatus.running, JobStatus.pending):
+            job.status = JobStatus.cancelled
+            proc = _processes.get(job.job_id)
+            if proc is not None:
+                proc.terminate()
+            _publish(job, queues)
+            _close_streams(job.job_id, queues)
+    async with condition:
+        condition.notify_all()
+
+
 async def _acquire_slot(job: DownloadJob, ctx: _ConcurrencyContext) -> bool:
     """Wait for a concurrency slot. Returns False if cancelled while waiting."""
     async with ctx.condition:
@@ -214,16 +231,7 @@ async def delete_jobs(
     condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
 ) -> None:
     if job_filter == "active":
-        for job in list(jobs.values()):
-            if job.status in (JobStatus.running, JobStatus.pending):
-                job.status = JobStatus.cancelled
-                proc = _processes.get(job.job_id)
-                if proc is not None:
-                    proc.terminate()
-                _publish(job, queues)
-                _close_streams(job.job_id, queues)
-        async with condition:
-            condition.notify_all()
+        await cancel_active_jobs(jobs, queues, condition)
         return
 
     if job_filter == "done":

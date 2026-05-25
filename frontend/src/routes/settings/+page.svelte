@@ -33,7 +33,8 @@
                 Download thread count
             </label>
             <p class="text-xs text-th-text-dim mb-2">
-                Number of parallel threads used by N_m3u8DL-RE (1–32).
+                Number of parallel threads used by N_m3u8DL-RE (1-32). Each
+                simultaneous download uses this amount of threads.
             </p>
             <input
                 id="thread-count"

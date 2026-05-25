@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { afterNavigate, goto } from "$app/navigation";
 	import { page } from "$app/state";
 	import { getTheme, setTheme, initTheme } from "$lib/theme";
 	import type { ColorTheme } from "$lib/theme";
+	import { getAuthStatus, logout } from "$lib/api";
 	import "../app.css";
 
 	let { children } = $props();
@@ -15,6 +17,22 @@
 	function selectTheme(t: ColorTheme) {
 		theme = t;
 		setTheme(t);
+	}
+
+	afterNavigate(async ({ to }) => {
+		if (to?.url.pathname === "/login") return;
+		const s = await getAuthStatus();
+		if (!s.authenticated) {
+			goto("/login");
+		}
+	});
+
+	async function handleLogout() {
+		try {
+			await logout();
+		} finally {
+			goto("/login");
+		}
 	}
 
 	const navLinks = [
@@ -125,6 +143,14 @@
 			>
 				Settings
 			</a>
+			{#if page.url.pathname !== "/login"}
+				<button
+					onclick={handleLogout}
+					class="text-sm text-th-text-dim hover:text-th-text-muted transition-colors"
+				>
+					Logout
+				</button>
+			{/if}
 		</div>
 	</nav>
 	<main class="flex-1 p-6 max-w-screen-2xl mx-auto w-full">
