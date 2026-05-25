@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
+import m3u8
 from fanzadl.constants import USER_AGENT
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -38,7 +39,9 @@ class _ConcurrencyContext:
 
 class DownloadRequest(BaseModel):
     output_name: str
-    media_url: str
+    video_id: int
+    part: int
+    stream_index: int
     thread_count: int = Field(default=4, ge=1, le=32)
 
 
@@ -87,7 +90,9 @@ async def _acquire_slot(job: DownloadJob, ctx: _ConcurrencyContext) -> bool:
 
 async def _run_download(  # noqa: PLR0913
     job: DownloadJob,
-    media_url: str,
+    video_id: int,
+    part: int,
+    stream_index: int,
     save_dir: str,
     save_name: str,
     thread_count: int,
@@ -96,6 +101,36 @@ async def _run_download(  # noqa: PLR0913
 ) -> None:
     if not await _acquire_slot(job, concurrency):
         return
+
+    try:
+        item = concurrency.app_state.manager.library.get(video_id)
+        if item is None:
+            job.error = f"Video {video_id} not found in library"
+            job.status = JobStatus.error
+            _publish(job, queues)
+            _close_streams(job.job_id, queues)
+            return
+        quality_obj = item.highest
+        if quality_obj is None:
+            job.error = f"No downloadable quality found for video {video_id}"
+            job.status = JobStatus.error
+            _publish(job, queues)
+            _close_streams(job.job_id, queues)
+            return
+        playlist_url = quality_obj.get_url(part)
+        response = await concurrency.app_state.http_client.get(
+            playlist_url, follow_redirects=True
+        )
+        response.raise_for_status()
+        parsed = m3u8.loads(response.text, uri=playlist_url)
+        media_url = parsed.playlists[stream_index].absolute_uri
+    except Exception as exc:
+        job.error = f"Failed to resolve media URL: {exc}"
+        job.status = JobStatus.error
+        _publish(job, queues)
+        _close_streams(job.job_id, queues)
+        return
+
     _publish(job, queues)
     output_lines: list[str] = []
     try:
@@ -181,7 +216,9 @@ async def start_download(
     task = asyncio.create_task(
         _run_download(
             job,
-            body.media_url,
+            body.video_id,
+            body.part,
+            body.stream_index,
             save_dir,
             body.output_name,
             body.thread_count,

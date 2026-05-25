@@ -27,9 +27,8 @@ export interface LibraryItem {
 export interface StreamVariant {
     index: number;
     bandwidth: number;
-    resolution: string | null;
     codecs: string | null;
-    uri: string;
+    uri?: string | null;
 }
 
 export interface AppSettings {

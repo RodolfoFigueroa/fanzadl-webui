@@ -24,6 +24,7 @@ async def refresh_library(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to refresh library: {exc}",
         ) from exc
+    request.app.state.stream_cache = {}
     await asyncio.to_thread(purge_stale, manager, IMAGE_CACHE_DIR)
     task = asyncio.create_task(
         precache_all(manager, request.app.state.http_client, IMAGE_CACHE_DIR)

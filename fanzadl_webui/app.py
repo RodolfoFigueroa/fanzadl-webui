@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.download_slot_condition = asyncio.Condition()
         app.state.background_tasks: set[asyncio.Task] = set()
         app.state.login_lock = asyncio.Lock()
+        app.state.stream_cache: dict = {}
 
         yield
 

@@ -74,15 +74,18 @@ let canSubmit = $derived(
         !submitting &&
         enabledCount > 0 &&
         partNumbers.every(
-            (_, i) => !enabledParts[i] || selectedPerPart[i]?.uri != null,
+            (_, i) => !enabledParts[i] || selectedPerPart[i]?.bandwidth != null,
         ),
 );
 
 onMount(async () => {
     try {
-        const results = await Promise.all(
-            partNumbers.map((p) => getStreams(item.mylibrary_id, p)),
-        );
+        const results: StreamVariant[][] = [];
+        for (const p of partNumbers) {
+            results.push(await getStreams(item.mylibrary_id, p));
+            if (partNumbers.length > 1)
+                await new Promise((r) => setTimeout(r, 500));
+        }
         streamsPerPart = results.map((variants) =>
             [...variants].sort((a, b) => b.bandwidth - a.bandwidth),
         );
@@ -106,7 +109,9 @@ async function handleSubmit() {
                 enabledParts[i]
                     ? [
                           startDownload(
-                              selectedPerPart[i].uri,
+                              item.mylibrary_id,
+                              partNumbers[i],
+                              selectedPerPart[i].index,
                               filenamesPerPart[i],
                               getThreadCount(),
                           ),
@@ -258,10 +263,7 @@ function handleKeydown(e: KeyboardEvent) {
                                 >
                                     {#each streamsPerPart[i] as variant, vi}
                                         <option value={vi}>
-                                            {variant.resolution ??
-                                                "Unknown res"} — {formatBandwidth(
-                                                variant.bandwidth,
-                                            )}
+                                            {formatBandwidth(variant.bandwidth)}
                                         </option>
                                     {/each}
                                 </select>

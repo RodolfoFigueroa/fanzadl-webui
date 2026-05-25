@@ -92,14 +92,18 @@ export async function getStreams(
 }
 
 export async function startDownload(
-    mediaUrl: string,
+    videoId: number,
+    part: number,
+    streamIndex: number,
     outputName: string,
     threadCount: number = getThreadCount(),
 ): Promise<{ job_id: string }> {
     return apiFetch('/api/download/', {
         method: 'POST',
         body: JSON.stringify({
-            media_url: mediaUrl,
+            video_id: videoId,
+            part,
+            stream_index: streamIndex,
             output_name: outputName,
             thread_count: threadCount,
         }),
