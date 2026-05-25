@@ -17,7 +17,7 @@ dependencies = [
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D", "COM812"]
+ignore = ["D", "COM812", "PLR2004"]
 
 [tool.uv.sources]
 fanzadl = { git = "https://github.com/RodolfoFigueroa/FanzaDL", tag = "v0.1.4" }

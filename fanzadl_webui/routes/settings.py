@@ -1,7 +1,10 @@
-import asyncio
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    import asyncio
 
 router = APIRouter()
 

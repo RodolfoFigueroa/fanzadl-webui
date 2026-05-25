@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 from pathlib import Path
 from typing import Annotated
@@ -38,10 +39,9 @@ async def precache_all(
         dest = _cache_path(cache_dir, mylibrary_id)
         if dest.exists():
             continue
-        try:
+
+        with contextlib.suppress(Exception):
             await _fetch_and_cache(http_client, str(item.package_image_url), dest)
-        except Exception:
-            pass  # best-effort; missing images will be fetched on demand
 
 
 def purge_stale(manager: FanzaDLManager, cache_dir: Path) -> None:

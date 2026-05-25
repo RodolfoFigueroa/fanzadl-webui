@@ -19,6 +19,8 @@ from .routes import download, images, library, refresh_library, settings, stream
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    _background_tasks = set()
     async with httpx.AsyncClient() as client:
         app.state.http_client = client
         app.state.jobs: dict = {}
@@ -28,9 +30,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.manager = FanzaDLManager(
             app_settings.fanza_email, app_settings.fanza_password
         )
-        asyncio.create_task(
+        await asyncio.to_thread(images.purge_stale, app.state.manager, IMAGE_CACHE_DIR)
+
+        task = asyncio.create_task(
             images.precache_all(app.state.manager, client, IMAGE_CACHE_DIR)
         )
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
+
         yield
 
 

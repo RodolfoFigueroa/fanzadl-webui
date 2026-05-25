@@ -200,7 +200,7 @@ def get_job(
 
 @router.delete("/jobs/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_jobs(
-    filter: Annotated[
+    job_filter: Annotated[
         Literal["finished", "done", "errored", "active"],
         Query(
             description=(
@@ -213,7 +213,7 @@ async def delete_jobs(
     queues: Annotated[Queues, Depends(get_queues)],
     condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
 ) -> None:
-    if filter == "active":
+    if job_filter == "active":
         for job in list(jobs.values()):
             if job.status in (JobStatus.running, JobStatus.pending):
                 job.status = JobStatus.cancelled
@@ -226,9 +226,9 @@ async def delete_jobs(
             condition.notify_all()
         return
 
-    if filter == "done":
+    if job_filter == "done":
         target_statuses = {JobStatus.done}
-    elif filter == "errored":
+    elif job_filter == "errored":
         target_statuses = {JobStatus.error, JobStatus.cancelled}
     else:  # finished
         target_statuses = {JobStatus.done, JobStatus.error, JobStatus.cancelled}
