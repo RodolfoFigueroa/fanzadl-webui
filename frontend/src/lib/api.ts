@@ -1,5 +1,5 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import type { DownloadJob, LibraryItem, StreamVariant } from './types';
+import type { AppSettings, DownloadJob, LibraryItem, StreamVariant } from './types';
 
 const THREAD_COUNT_KEY = 'downloadThreadCount';
 
@@ -65,6 +65,18 @@ export async function stopJob(jobId: string): Promise<void> {
 
 export async function deleteJobs(filter: 'finished' | 'done' | 'errored'): Promise<void> {
     await apiFetch(`/api/jobs/?filter=${filter}`, { method: 'DELETE' });
+}
+
+export async function stopAllJobs(): Promise<void> {
+    await apiFetch('/api/jobs/?filter=active', { method: 'DELETE' });
+}
+
+export async function getSettings(): Promise<AppSettings> {
+    return apiFetch('/api/settings/');
+}
+
+export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+    return apiFetch('/api/settings/', { method: 'PATCH', body: JSON.stringify(patch) });
 }
 
 export function subscribeJobEvents(

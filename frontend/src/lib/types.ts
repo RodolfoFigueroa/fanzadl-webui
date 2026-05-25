@@ -31,3 +31,7 @@ export interface StreamVariant {
     codecs: string | null;
     uri: string;
 }
+
+export interface AppSettings {
+    max_concurrent_downloads: number;
+}

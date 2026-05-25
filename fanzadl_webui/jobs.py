@@ -48,3 +48,7 @@ def get_queues(request: Request) -> Queues:
 
 def get_http_client(request: Request) -> httpx.AsyncClient:
     return request.app.state.http_client
+
+
+def get_download_slot_condition(request: Request) -> asyncio.Condition:
+    return request.app.state.download_slot_condition

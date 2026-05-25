@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { onMount, onDestroy } from "svelte";
-	import { getJobs, subscribeJobEvents, deleteJobs } from "$lib/api";
+	import {
+		getJobs,
+		subscribeJobEvents,
+		deleteJobs,
+		stopAllJobs,
+	} from "$lib/api";
 	import JobCard from "$lib/components/JobCard.svelte";
 	import type { DownloadJob } from "$lib/types";
 
@@ -21,7 +26,11 @@
 			job.job_id,
 			(updated) => {
 				jobs = { ...jobs, [updated.job_id]: updated };
-				if (updated.status === "done" || updated.status === "error") {
+				if (
+					updated.status === "done" ||
+					updated.status === "error" ||
+					updated.status === "cancelled"
+				) {
 					controllers.get(updated.job_id)?.abort();
 					controllers.delete(updated.job_id);
 				}
@@ -85,6 +94,15 @@
 			["error", "cancelled"].includes(j.status),
 		),
 	);
+	let hasActive = $derived(
+		Object.values(jobs).some((j) =>
+			["running", "pending"].includes(j.status),
+		),
+	);
+
+	async function handleStopAll() {
+		await stopAllJobs();
+	}
 
 	function handleJobDeleted(jobId: string) {
 		const { [jobId]: _, ...rest } = jobs;
@@ -115,13 +133,22 @@
 
 <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
 	<h1 class="text-2xl font-bold">Downloads</h1>
-	{#if hasFinished}
-		<div class="flex items-center gap-2 flex-wrap">
+	<div class="flex items-center gap-2 flex-wrap">
+		{#if hasActive}
+			<button
+				onclick={handleStopAll}
+				class="text-xs px-3 py-1.5 rounded-lg border border-yellow-700 text-yellow-400
+				hover:bg-yellow-900/30 transition-colors"
+			>
+				Stop all downloads
+			</button>
+		{/if}
+		{#if hasFinished}
 			{#if hasDone}
 				<button
 					onclick={() => handleBulkDelete("done")}
 					class="text-xs px-3 py-1.5 rounded-lg border border-green-800 text-green-400
-						hover:bg-green-900/30 transition-colors"
+					hover:bg-green-900/30 transition-colors"
 				>
 					Delete successful
 				</button>
@@ -130,7 +157,7 @@
 				<button
 					onclick={() => handleBulkDelete("errored")}
 					class="text-xs px-3 py-1.5 rounded-lg border border-red-800 text-red-400
-						hover:bg-red-900/30 transition-colors"
+					hover:bg-red-900/30 transition-colors"
 				>
 					Delete errored/stopped
 				</button>
@@ -138,12 +165,12 @@
 			<button
 				onclick={() => handleBulkDelete("finished")}
 				class="text-xs px-3 py-1.5 rounded-lg border border-th-border text-th-text-dim
-					hover:bg-gray-500/15 transition-colors"
+				hover:bg-gray-500/15 transition-colors"
 			>
 				Delete all finished
 			</button>
-		</div>
-	{/if}
+		{/if}
+	</div>
 </div>
 
 {#if loading}

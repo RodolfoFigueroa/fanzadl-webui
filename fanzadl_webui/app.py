@@ -11,8 +11,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 from starlette.types import Scope
 
-from .dependencies import IMAGE_CACHE_DIR, settings
-from .routes import download, images, library, refresh_library, streams, url
+from .dependencies import IMAGE_CACHE_DIR
+from .dependencies import settings as app_settings
+from .routes import download, images, library, refresh_library, settings, streams, url
 
 
 @asynccontextmanager
@@ -22,8 +23,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.http_client = client
         app.state.jobs: dict = {}
         app.state.queues: dict = {}
+        app.state.max_concurrent_downloads: int = 3
+        app.state.download_slot_condition = asyncio.Condition()
         app.state.manager = FanzaDLManager(
-            settings.fanza_email, settings.fanza_password
+            app_settings.fanza_email, app_settings.fanza_password
         )
         asyncio.create_task(
             images.precache_all(app.state.manager, client, IMAGE_CACHE_DIR)
@@ -38,6 +41,7 @@ app.include_router(refresh_library.router, prefix="/api")
 app.include_router(url.router, prefix="/api")
 app.include_router(streams.router, prefix="/api")
 app.include_router(download.router, prefix="/api")
+app.include_router(settings.router, prefix="/api")
 app.include_router(images.router, prefix="/api")
 
 _dist = Path(__file__).parent.parent / "frontend" / "dist"

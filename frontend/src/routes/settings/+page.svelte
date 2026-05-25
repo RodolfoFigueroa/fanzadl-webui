@@ -1,7 +1,19 @@
 <script lang="ts">
-    import { getThreadCount, setThreadCount } from "$lib/api";
+    import { onMount } from "svelte";
+    import {
+        getSettings,
+        getThreadCount,
+        setThreadCount,
+        updateSettings,
+    } from "$lib/api";
 
     let threadCount = $state(getThreadCount());
+    let maxConcurrentDownloads = $state(3);
+
+    onMount(async () => {
+        const s = await getSettings();
+        maxConcurrentDownloads = s.max_concurrent_downloads;
+    });
 </script>
 
 <svelte:head>
@@ -31,6 +43,36 @@
                 bind:value={threadCount}
                 onchange={() =>
                     setThreadCount(Math.min(32, Math.max(1, threadCount)))}
+                class="w-24 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
+					focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
+					transition-shadow"
+            />
+        </div>
+        <div>
+            <label
+                class="block text-sm font-medium text-th-text-muted mb-1.5"
+                for="max-concurrent-downloads"
+            >
+                Maximum simultaneous downloads
+            </label>
+            <p class="text-xs text-th-text-dim mb-2">
+                How many downloads may run at the same time. Additional
+                downloads are queued and start automatically.
+            </p>
+            <input
+                id="max-concurrent-downloads"
+                type="number"
+                min="1"
+                bind:value={maxConcurrentDownloads}
+                onchange={() => {
+                    maxConcurrentDownloads = Math.max(
+                        1,
+                        maxConcurrentDownloads,
+                    );
+                    updateSettings({
+                        max_concurrent_downloads: maxConcurrentDownloads,
+                    });
+                }}
                 class="w-24 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
 					focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
 					transition-shadow"

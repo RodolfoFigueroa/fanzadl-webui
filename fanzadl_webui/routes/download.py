@@ -1,18 +1,21 @@
 import asyncio
 import re
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from fanzadl.constants import USER_AGENT
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
+from starlette.datastructures import State
 
 from fanzadl_webui.dependencies import DOWNLOAD_DIR
 from fanzadl_webui.jobs import (
     DownloadJob,
     JobStatus,
     Queues,
+    get_download_slot_condition,
     get_jobs,
     get_queues,
 )
@@ -24,6 +27,13 @@ _processes: dict[str, asyncio.subprocess.Process] = {}
 _PCT_RE = re.compile(r"(\d+)/(\d+)\s+([\d.]+)%")
 _SPEED_RE = re.compile(r"[\d.]+\s*[KMGT]?Bps")
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mK]")
+
+
+@dataclass
+class _ConcurrencyContext:
+    jobs: dict[str, DownloadJob]
+    condition: asyncio.Condition
+    app_state: State
 
 
 class DownloadRequest(BaseModel):
@@ -43,89 +53,123 @@ def _close_streams(job_id: str, queues: Queues) -> None:
         q.put_nowait(None)
 
 
-async def _run_download(
+async def _acquire_slot(job: DownloadJob, ctx: _ConcurrencyContext) -> bool:
+    """Wait for a concurrency slot. Returns False if cancelled while waiting."""
+    async with ctx.condition:
+        while (
+            sum(1 for j in ctx.jobs.values() if j.status == JobStatus.running)
+            >= ctx.app_state.max_concurrent_downloads
+            and job.status != JobStatus.cancelled
+        ):
+            await ctx.condition.wait()
+        if job.status == JobStatus.cancelled:
+            return False
+        job.status = JobStatus.running
+        return True
+
+
+async def _run_download(  # noqa: PLR0913
     job: DownloadJob,
     media_url: str,
     save_dir: str,
     save_name: str,
     thread_count: int,
     queues: Queues,
+    concurrency: _ConcurrencyContext,
 ) -> None:
-    job.status = JobStatus.running
+    if not await _acquire_slot(job, concurrency):
+        return
     _publish(job, queues)
     output_lines: list[str] = []
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "N_m3u8DL-RE",
-            media_url,
-            "--save-dir",
-            save_dir,
-            "--save-name",
-            save_name,
-            "--thread-count",
-            str(thread_count),
-            "-M",
-            "format=mp4",
-            "--no-log",
-            "--header",
-            f"User-Agent: {USER_AGENT}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        if proc.stdout is None:
-            msg = "N_m3u8DL-RE process streams unavailable"
-            raise RuntimeError(msg)
-
-        _processes[job.job_id] = proc
         try:
-            async for raw_line in proc.stdout:
-                line = _ANSI_RE.sub("", raw_line.decode(errors="replace")).strip()
-                if not line:
-                    continue
-                output_lines.append(line)
-                pct_m = _PCT_RE.search(line)
-                if pct_m:
-                    job.segments_done = int(pct_m.group(1))
-                    job.segments_total = int(pct_m.group(2))
-                    job.percent_done = float(pct_m.group(3))
-                    speed_m = _SPEED_RE.search(line)
-                    if speed_m:
-                        job.speed = speed_m.group(0)
-                    _publish(job, queues)
-            await proc.wait()
-        finally:
-            _processes.pop(job.job_id, None)
-    except Exception as exc:  # noqa: BLE001
-        job.error = str(exc)
-        job.status = JobStatus.error
+            proc = await asyncio.create_subprocess_exec(
+                "N_m3u8DL-RE",
+                media_url,
+                "--save-dir",
+                save_dir,
+                "--save-name",
+                save_name,
+                "--thread-count",
+                str(thread_count),
+                "-M",
+                "format=mp4",
+                "--no-log",
+                "--header",
+                f"User-Agent: {USER_AGENT}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            if proc.stdout is None:
+                msg = "N_m3u8DL-RE process streams unavailable"
+                raise RuntimeError(msg)
+
+            _processes[job.job_id] = proc
+            try:
+                async for raw_line in proc.stdout:
+                    line = _ANSI_RE.sub("", raw_line.decode(errors="replace")).strip()
+                    if not line:
+                        continue
+                    output_lines.append(line)
+                    pct_m = _PCT_RE.search(line)
+                    if pct_m:
+                        job.segments_done = int(pct_m.group(1))
+                        job.segments_total = int(pct_m.group(2))
+                        job.percent_done = float(pct_m.group(3))
+                        speed_m = _SPEED_RE.search(line)
+                        if speed_m:
+                            job.speed = speed_m.group(0)
+                        _publish(job, queues)
+                await proc.wait()
+            finally:
+                _processes.pop(job.job_id, None)
+        except Exception as exc:  # noqa: BLE001
+            job.error = str(exc)
+            job.status = JobStatus.error
+            _publish(job, queues)
+            _close_streams(job.job_id, queues)
+            return
+
+        if proc.returncode != 0 and job.status != JobStatus.cancelled:
+            job.error = "\n".join(output_lines)
+            job.status = JobStatus.error
+        elif job.status != JobStatus.cancelled:
+            job.output_path = str(DOWNLOAD_DIR / f"{save_name}.mp4")
+            job.status = JobStatus.done
         _publish(job, queues)
         _close_streams(job.job_id, queues)
-        return
-
-    if proc.returncode != 0 and job.status != JobStatus.cancelled:
-        job.error = "\n".join(output_lines)
-        job.status = JobStatus.error
-    elif job.status != JobStatus.cancelled:
-        job.output_path = str(DOWNLOAD_DIR / f"{save_name}.mp4")
-        job.status = JobStatus.done
-    _publish(job, queues)
-    _close_streams(job.job_id, queues)
+    finally:
+        async with concurrency.condition:
+            concurrency.condition.notify_all()
 
 
 @router.post("/download/")
 async def start_download(
+    request: Request,
     body: DownloadRequest,
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],
+    condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
 ) -> dict[str, str]:
     save_dir = str(DOWNLOAD_DIR)
 
     job = DownloadJob.create(output_name=body.output_name)
     jobs[job.job_id] = job
     queues[job.job_id] = []
+    concurrency = _ConcurrencyContext(
+        jobs=jobs,
+        condition=condition,
+        app_state=request.app.state,
+    )
     task = asyncio.create_task(
         _run_download(
-            job, body.media_url, save_dir, body.output_name, body.thread_count, queues
+            job,
+            body.media_url,
+            save_dir,
+            body.output_name,
+            body.thread_count,
+            queues,
+            concurrency,
         )
     )
     _background_tasks.add(task)
@@ -157,14 +201,31 @@ def get_job(
 @router.delete("/jobs/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_jobs(
     filter: Annotated[
-        Literal["finished", "done", "errored"],
+        Literal["finished", "done", "errored", "active"],
         Query(
-            description="Which finished jobs to delete: finished=all, done=successful only, errored=error+cancelled"
+            description=(
+                "Which jobs to act on: finished=all finished, done=successful only, "
+                "errored=error+cancelled, active=cancel all running/pending"
+            )
         ),
     ],
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],
+    condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
 ) -> None:
+    if filter == "active":
+        for job in list(jobs.values()):
+            if job.status in (JobStatus.running, JobStatus.pending):
+                job.status = JobStatus.cancelled
+                proc = _processes.get(job.job_id)
+                if proc is not None:
+                    proc.terminate()
+                _publish(job, queues)
+                _close_streams(job.job_id, queues)
+        async with condition:
+            condition.notify_all()
+        return
+
     if filter == "done":
         target_statuses = {JobStatus.done}
     elif filter == "errored":
@@ -183,6 +244,7 @@ async def cancel_or_delete_job(
     job_id: str,
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],
+    condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
 ) -> None:
     job = jobs.get(job_id)
     if job is None:
@@ -199,6 +261,8 @@ async def cancel_or_delete_job(
         proc.terminate()
     _publish(job, queues)
     _close_streams(job_id, queues)
+    async with condition:
+        condition.notify_all()
 
 
 @router.get("/jobs/{job_id}/events")
