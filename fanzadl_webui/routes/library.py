@@ -16,7 +16,7 @@ LibraryItem = VideoLibraryItemContentsModel | VRLibraryItemContentsModel
 
 class LibraryItemResponse(BaseModel):
     mylibrary_id: int
-    product_id: str
+    content_id: str
     title: str
     content_type: Literal["video", "vr"]
     package_image_url: str
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/library")
 def _serialize(item: LibraryItem) -> LibraryItemResponse:
     return LibraryItemResponse(
         mylibrary_id=item.mylibrary_id,
-        product_id=item.product_id,
+        content_id=item.content_id,
         title=item.title,
         content_type=item.content_type,
         package_image_url=f"/api/images/{item.mylibrary_id}",

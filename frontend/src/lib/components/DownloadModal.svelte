@@ -35,7 +35,7 @@ const partNumbers = untrack(() =>
         ? [0]
         : Array.from({ length: item.parts }, (_, i) => i + 1),
 );
-const baseFilename = untrack(() => item.product_id);
+const baseFilename = untrack(() => item.content_id);
 
 let enabledParts = $state<boolean[]>(partNumbers.map(() => true));
 

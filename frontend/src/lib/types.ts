@@ -17,7 +17,7 @@ export interface DownloadJob {
 
 export interface LibraryItem {
     mylibrary_id: number;
-    product_id: string;
+    content_id: string;
     title: string;
     content_type: 'video' | 'vr';
     package_image_url: string;
