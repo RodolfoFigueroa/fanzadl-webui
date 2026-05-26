@@ -20,7 +20,7 @@ select = ["ALL"]
 ignore = ["D", "COM812", "PLR2004"]
 
 [tool.uv.sources]
-fanzadl = { git = "https://github.com/RodolfoFigueroa/FanzaDL", tag = "v0.1.5" }
+fanzadl = { git = "https://github.com/RodolfoFigueroa/FanzaDL", tag = "v0.1.6" }
 
 [dependency-groups]
 dev = ["ipykernel<7", "pre-commit>=4.6.0"]
