@@ -67,6 +67,13 @@ async function copyError() {
     copied = true;
     setTimeout(() => (copied = false), 2000);
 }
+
+function formatBytes(n: number): string {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 ** 2) return `${(n / 1024).toFixed(2)} KB`;
+    if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(2)} MB`;
+    return `${(n / 1024 ** 3).toFixed(2)} GB`;
+}
 </script>
 
 <div class="bg-th-surface border border-th-border rounded-xl p-4 space-y-3">
@@ -151,6 +158,11 @@ async function copyError() {
                             >{job.segments_done}/{job.segments_total} segs</span
                         >
                     {/if}
+                    {#if job.bytes_downloaded != null && job.bytes_total != null && job.status === 'running' && !isMuxing}
+                        <span class="text-th-text-faint"
+                            >{job.bytes_downloaded} / {job.bytes_total}</span
+                        >
+                    {/if}
                     {#if job.speed && job.status === "running" && !isMuxing}
                         <span>{job.speed}</span>
                     {/if}
@@ -194,7 +206,7 @@ async function copyError() {
     <!-- Output path when done -->
     {#if job.status === "done" && job.output_path}
         <p class="text-xs text-th-text-faint truncate" title={job.output_path}>
-            {job.output_path}
+            {job.output_path}{job.file_size != null ? ` · ${formatBytes(job.file_size)}` : ''}
         </p>
     {/if}
 </div>

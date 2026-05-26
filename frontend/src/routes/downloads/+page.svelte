@@ -95,12 +95,12 @@ function handleJobDeleted(jobId: string) {
     jobs = rest;
 }
 
-async function handleBulkDelete(filter: 'finished' | 'done' | 'errored') {
-    await deleteJobs(filter);
+async function handleBulkDelete(job_filter: 'finished' | 'done' | 'errored') {
+    await deleteJobs(job_filter);
     const statuses =
-        filter === 'done'
+        job_filter === 'done'
             ? ['done']
-            : filter === 'errored'
+            : job_filter === 'errored'
               ? ['error', 'cancelled']
               : ['done', 'error', 'cancelled'];
     const updated = { ...jobs };

@@ -134,13 +134,13 @@ export async function stopJob(jobId: string): Promise<void> {
 }
 
 export async function deleteJobs(
-    filter: 'finished' | 'done' | 'errored',
+    job_filter: 'finished' | 'done' | 'errored',
 ): Promise<void> {
-    await apiFetch(`/api/jobs/?filter=${filter}`, { method: 'DELETE' });
+    await apiFetch(`/api/jobs/?job_filter=${job_filter}`, { method: 'DELETE' });
 }
 
 export async function stopAllJobs(): Promise<void> {
-    await apiFetch('/api/jobs/?filter=active', { method: 'DELETE' });
+    await apiFetch('/api/jobs/?job_filter=active', { method: 'DELETE' });
 }
 
 let _settingsCache: AppSettings | null = null;

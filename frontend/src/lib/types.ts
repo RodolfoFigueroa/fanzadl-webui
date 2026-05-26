@@ -8,6 +8,9 @@ export interface DownloadJob {
     percent_done: number | null;
     segments_done: number | null;
     segments_total: number | null;
+    bytes_downloaded: string | null;
+    bytes_total: string | null;
+    file_size: number | null;
     output_path: string | null;
     error: string | null;
 }

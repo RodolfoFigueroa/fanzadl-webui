@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import re
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ _processes: dict[str, asyncio.subprocess.Process] = {}
 
 _PCT_RE = re.compile(r"(\d+)/(\d+)\s+([\d.]+)%")
 _SPEED_RE = re.compile(r"[\d.]+\s*[KMGT]?Bps")
+_SIZE_RE = re.compile(r"([\d.]+[KMGT]?B)/([\d.]+[KMGT]?B)")
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mK]")
 
 
@@ -171,6 +173,10 @@ async def _run_download(  # noqa: PLR0913
                         speed_m = _SPEED_RE.search(line)
                         if speed_m:
                             job.speed = speed_m.group(0)
+                        size_m = _SIZE_RE.search(line)
+                        if size_m:
+                            job.bytes_downloaded = size_m.group(1)
+                            job.bytes_total = size_m.group(2)
                         _publish(job, queues)
                 await proc.wait()
             finally:
@@ -187,6 +193,8 @@ async def _run_download(  # noqa: PLR0913
             job.status = JobStatus.error
         elif job.status != JobStatus.cancelled:
             job.output_path = str(DOWNLOAD_DIR / f"{save_name}.mp4")
+            with contextlib.suppress(OSError):
+                job.file_size = (DOWNLOAD_DIR / f"{save_name}.mp4").stat().st_size
             job.status = JobStatus.done
         _publish(job, queues)
         _close_streams(job.job_id, queues)
