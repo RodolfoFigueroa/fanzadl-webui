@@ -30,7 +30,7 @@ let isMuxing = $derived(
 
 let cfg = $derived(
     isMuxing
-        ? { label: 'Processing…', classes: 'bg-blue-900/60 text-blue-300' }
+        ? { label: 'Processing…', classes: 'bg-sakura-700/40 text-sakura-200' }
         : (statusConfig[job.status] ?? statusConfig.pending),
 );
 let progressPct = $derived(
@@ -124,7 +124,7 @@ async function copyError() {
         <div class="space-y-1">
             <div class="w-full bg-th-input rounded-full h-1.5 overflow-hidden">
                 {#if isMuxing}
-                    <div class="h-1.5 rounded-full bg-blue-400 animate-pulse w-full"></div>
+                    <div class="h-1.5 rounded-full bg-sakura-400 animate-pulse w-full"></div>
                 {:else}
                     <div
                         class="h-1.5 rounded-full transition-all duration-500
