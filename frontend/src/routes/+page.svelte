@@ -13,7 +13,7 @@ let error = $state('');
 let refreshing = $state(false);
 let selectedItem = $state<LibraryItem | null>(null);
 
-type SortField = 'title' | 'purchase_date' | 'parts' | 'expire';
+type SortField = 'title' | 'purchase_date' | 'parts' | 'expire' | 'content_id';
 let sortField = $state<SortField>('purchase_date');
 let sortAsc = $state(false);
 
@@ -37,6 +37,8 @@ const sortedLibrary = $derived(
             cmp = (a.parts || 1) - (b.parts || 1);
         } else if (sortField === 'expire') {
             cmp = daysLeft(a.expire) - daysLeft(b.expire);
+        } else if (sortField === 'content_id') {
+            cmp = a.content_id.localeCompare(b.content_id);
         }
         return sortAsc ? cmp : -cmp;
     }),
@@ -141,6 +143,7 @@ onMount(loadLibrary);
 			<option value="title">Title</option>
 			<option value="parts">Part count</option>
 			<option value="expire">Days left</option>
+			<option value="content_id">Content ID</option>
 		</select>
 		<button
 			onclick={() => (sortAsc = !sortAsc)}

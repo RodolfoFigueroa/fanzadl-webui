@@ -33,6 +33,9 @@ const days = $derived(daysLeft(item.expire));
 	class="bg-th-surface border border-th-border rounded-xl overflow-hidden flex flex-col
 		hover:border-th-border-strong transition-colors"
 >
+	<!-- Content ID -->
+	<div class="px-3 pt-2 text-sm text-th-text font-mono font-medium">{item.content_id}</div>
+
 	<!-- Cover image -->
 	<div class="relative bg-th-input overflow-hidden" style="aspect-ratio: 3/4">
 		{#if !imgError}
