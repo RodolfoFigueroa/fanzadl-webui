@@ -93,6 +93,7 @@ async def get_streams(  # noqa: PLR0913
             index=i,
             bandwidth=p.stream_info.bandwidth,
             codecs=p.stream_info.codecs,
+            uri=p.absolute_uri,
         )
         for i, p in enumerate(parsed.playlists)
     ]
