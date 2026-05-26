@@ -146,6 +146,10 @@ onMount(async () => {
             // best-effort; silently ignore
         });
 
+    for (let i = 0; i < partNumbers.length; i++) {
+        scheduleFilenameCheck(i, filenamesPerPart[i]);
+    }
+
     try {
         const results: StreamVariant[][] = [];
         for (const p of partNumbers) {
@@ -348,7 +352,7 @@ function handleKeydown(e: KeyboardEvent) {
                                 {/if}
                             </div>
                         {:else}
-                            <p class="text-xs text-yellow-400">
+                            <p class="text-xs text-amber-600 dark:text-amber-400">
                                 No stream variants found for this part.
                             </p>
                         {/if}
@@ -387,7 +391,7 @@ function handleKeydown(e: KeyboardEvent) {
                                     {filenameErrors[i]}
                                 </p>
                             {:else if filenameWarnings[i]}
-                                <p class="text-xs text-yellow-400 mt-1">
+                                <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
                                     {filenameWarnings[i]}
                                 </p>
                             {/if}
