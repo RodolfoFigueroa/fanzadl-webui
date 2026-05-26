@@ -115,6 +115,13 @@ let canSubmit = $derived(
         filenameErrors.every((e, i) => !enabledParts[i] || !e),
 );
 
+let hasAnyConflict = $derived(
+    partNumbers.some(
+        (_, i) =>
+            enabledParts[i] && (!!filenameErrors[i] || !!filenameWarnings[i]),
+    ),
+);
+
 function scheduleFilenameCheck(i: number, name: string) {
     clearTimeout(_checkTimers[i]);
     if (!name) {
@@ -199,6 +206,12 @@ async function handleSubmit() {
     }
 }
 
+function deselectExisting() {
+    enabledParts = partNumbers.map(
+        (_, i) => enabledParts[i] && !filenameErrors[i] && !filenameWarnings[i],
+    );
+}
+
 function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) onClose();
 }
@@ -274,13 +287,23 @@ function handleKeydown(e: KeyboardEvent) {
                 <p class="text-red-400 text-sm">{streamError}</p>
             {:else}
                 {#if partNumbers.length > 1}
-                    <div class="flex justify-end">
+                    <div class="flex justify-end gap-2">
+                        <button
+                            onclick={deselectExisting}
+                            disabled={!hasAnyConflict}
+                            class="text-xs font-medium py-1 px-2.5 rounded-md bg-th-input
+								hover:bg-th-input-nested text-th-text-muted
+								disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Deselect all existing
+                        </button>
                         <button
                             onclick={() =>
                                 (enabledParts = partNumbers.map(
                                     () => !allEnabled,
                                 ))}
-                            class="text-xs text-th-link hover:text-th-link-hover transition-colors"
+                            class="text-xs font-medium py-1 px-2.5 rounded-md bg-th-input
+								hover:bg-th-input-nested text-th-text-muted transition-colors"
                         >
                             {allEnabled ? "Deselect all" : "Select all"}
                         </button>
