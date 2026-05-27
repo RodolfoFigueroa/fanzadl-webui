@@ -4,9 +4,11 @@ import type { LibraryItem } from '$lib/types';
 let {
     item,
     onDownload,
+    javstashEnabled = false,
 }: {
     item: LibraryItem;
     onDownload: (item: LibraryItem) => void;
+    javstashEnabled?: boolean;
 } = $props();
 
 let imgError = $state(false);
@@ -34,7 +36,25 @@ const days = $derived(daysLeft(item.expire));
 		hover:border-th-border-strong transition-colors"
 >
 	<!-- Content ID -->
-	<div class="px-3 pt-2 text-sm text-th-text font-mono font-medium">{item.content_id}</div>
+	<div class="px-3 pt-2 flex items-center justify-between">
+		<span class="text-sm text-th-text font-mono font-medium">{item.content_id}</span>
+		<div class="flex items-center gap-2">
+			{#if javstashEnabled && item.javstash_id}
+				<a
+					href="https://javstash.org/scenes/{item.javstash_id}"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="text-xs font-semibold text-sakura-400 hover:text-sakura-300 transition-colors"
+				>JS</a>
+			{/if}
+			<a
+				href="https://r18.dev/videos/vod/movies/detail/-/id={item.content_id}/"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="text-xs font-semibold text-red-500 hover:text-red-400 transition-colors"
+			>R18</a>
+		</div>
+	</div>
 
 	<!-- Cover image -->
 	<div class="relative bg-th-input overflow-hidden" style="aspect-ratio: 3/4">

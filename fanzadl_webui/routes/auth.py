@@ -33,7 +33,12 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
             )
 
         try:
-            manager = await asyncio.to_thread(FanzaDLManager, body.email, body.password)
+            manager = await asyncio.to_thread(
+                FanzaDLManager,
+                body.email,
+                body.password,
+                javstash_api_key=request.app.state.javstash_api_key,
+            )
         except MalformedEmailError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

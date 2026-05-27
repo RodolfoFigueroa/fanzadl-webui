@@ -25,6 +25,8 @@ export interface LibraryItem {
     purchase_date: string;
     expire: string;
     trans_type: 'download' | 'stream';
+    javstash_id: string | null;
+    javstash_studio_code: string | null;
 }
 
 export interface StreamVariant {
@@ -37,4 +39,5 @@ export interface StreamVariant {
 export interface AppSettings {
     max_concurrent_downloads: number;
     log_level: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
+    javstash_enabled: boolean;
 }

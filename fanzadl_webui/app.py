@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -43,6 +44,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.background_tasks: set[asyncio.Task] = set()
         app.state.login_lock = asyncio.Lock()
         app.state.stream_cache: dict = {}
+        _javstash_api_key = os.environ.get("JAVSTASH_API_KEY") or None
+        app.state.javstash_api_key: str | None = _javstash_api_key
+        app.state.javstash_enabled: bool = _javstash_api_key is not None
 
         yield
 

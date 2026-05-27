@@ -15,6 +15,7 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
 class AppSettings(BaseModel):
     max_concurrent_downloads: int
     log_level: LogLevel
+    javstash_enabled: bool
 
 
 class AppSettingsPatch(BaseModel):
@@ -27,6 +28,7 @@ def get_settings(request: Request) -> AppSettings:
     return AppSettings(
         max_concurrent_downloads=request.app.state.max_concurrent_downloads,
         log_level=request.app.state.log_level,
+        javstash_enabled=request.app.state.javstash_enabled,
     )
 
 
@@ -43,4 +45,5 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
     return AppSettings(
         max_concurrent_downloads=request.app.state.max_concurrent_downloads,
         log_level=request.app.state.log_level,
+        javstash_enabled=request.app.state.javstash_enabled,
     )

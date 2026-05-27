@@ -1,7 +1,12 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
-import { getCachedLibrary, getLibrary, refreshLibrary } from '$lib/api';
+import {
+    getCachedLibrary,
+    getLibrary,
+    getSettings,
+    refreshLibrary,
+} from '$lib/api';
 import DownloadModal from '$lib/components/DownloadModal.svelte';
 import VideoCard from '$lib/components/VideoCard.svelte';
 import type { LibraryItem } from '$lib/types';
@@ -12,6 +17,7 @@ let loading = $state(_cached === null);
 let error = $state('');
 let refreshing = $state(false);
 let selectedItem = $state<LibraryItem | null>(null);
+let javstashEnabled = $state(false);
 
 type SortField = 'title' | 'purchase_date' | 'parts' | 'expire' | 'content_id';
 let sortField = $state<SortField>('purchase_date');
@@ -70,7 +76,15 @@ async function handleRefresh() {
     }
 }
 
-onMount(loadLibrary);
+onMount(async () => {
+    await loadLibrary();
+    try {
+        const s = await getSettings();
+        javstashEnabled = s.javstash_enabled;
+    } catch {
+        // settings unavailable; leave javstashEnabled as false
+    }
+});
 </script>
 
 <svelte:head>
@@ -158,7 +172,7 @@ onMount(loadLibrary);
 		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
 	>
 		{#each sortedLibrary as item (item.mylibrary_id)}
-			<VideoCard {item} onDownload={(i) => (selectedItem = i)} />
+			<VideoCard {item} {javstashEnabled} onDownload={(i) => (selectedItem = i)} />
 		{/each}
 	</div>
 {/if}

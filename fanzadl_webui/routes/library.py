@@ -24,6 +24,8 @@ class LibraryItemResponse(BaseModel):
     purchase_date: datetime
     expire: date
     trans_type: Literal["download", "stream"]
+    javstash_id: str | None = None
+    javstash_studio_code: str | None = None
 
 
 router = APIRouter(prefix="/library")
@@ -40,6 +42,8 @@ def _serialize(item: LibraryItem) -> LibraryItemResponse:
         purchase_date=item.purchase_date,
         expire=item.expire,
         trans_type=item.trans_type,
+        javstash_id=getattr(item, "javstash_id", None),
+        javstash_studio_code=getattr(item, "javstash_studio_code", None),
     )
 
 
