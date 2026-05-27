@@ -47,7 +47,7 @@ let filenamesPerPart = $state<string[]>(
     partNumbers.map((p) =>
         partNumbers.length === 1
             ? baseFilename
-            : `${baseFilename}_${String(p).padStart(2, '0')}`,
+            : `${baseFilename}/${baseFilename}_${String(p).padStart(2, '0')}`,
     ),
 );
 
