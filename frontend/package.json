@@ -27,6 +27,7 @@
         "vite": "^6.3.3"
     },
     "dependencies": {
-        "@microsoft/fetch-event-source": "^2.0.1"
+        "@microsoft/fetch-event-source": "^2.0.1",
+        "cronstrue": "^3.14.0"
     }
 }

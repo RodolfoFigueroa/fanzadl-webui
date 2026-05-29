@@ -19,6 +19,8 @@ class AppConfig(BaseModel):
     download_thread_count: int = Field(default=4, ge=1, le=32)
     single_part_filename_template: str = "{content_id}"
     multi_part_filename_template: str = "{content_id}/{content_id}_{part:02}"
+    library_refresh_enabled: bool = False
+    library_refresh_cron: str = "0 0 * * *"
 
 
 def save_config(path: Path, config: AppConfig) -> None:

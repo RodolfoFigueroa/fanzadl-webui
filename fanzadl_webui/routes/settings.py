@@ -2,7 +2,8 @@ import asyncio
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Request
+from apscheduler.triggers.cron import CronTrigger
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field, SecretStr
 
 from fanzadl_webui.api_key_store import delete_api_key
@@ -13,6 +14,7 @@ from fanzadl_webui.dependencies import (
 )
 from fanzadl_webui.library_cache import save_library_cache
 from fanzadl_webui.manager import warm_all_details
+from fanzadl_webui.scheduler import schedule_library_refresh, unschedule_library_refresh
 
 router = APIRouter()
 
@@ -28,6 +30,8 @@ class AppSettings(BaseModel):
     javstash_enabled: bool
     single_part_filename_template: str
     multi_part_filename_template: str
+    library_refresh_enabled: bool
+    library_refresh_cron: str
 
 
 class AppSettingsPatch(BaseModel):
@@ -37,6 +41,8 @@ class AppSettingsPatch(BaseModel):
     javstash_api_key: str | None = None
     single_part_filename_template: str | None = None
     multi_part_filename_template: str | None = None
+    library_refresh_enabled: bool | None = None
+    library_refresh_cron: str | None = None
 
 
 @router.get("/settings/")
@@ -48,6 +54,8 @@ def get_settings(request: Request) -> AppSettings:
         javstash_enabled=request.app.state.javstash_enabled,
         single_part_filename_template=request.app.state.single_part_filename_template,
         multi_part_filename_template=request.app.state.multi_part_filename_template,
+        library_refresh_enabled=request.app.state.library_refresh_enabled,
+        library_refresh_cron=request.app.state.library_refresh_cron,
     )
 
 
@@ -105,6 +113,23 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
             delete_api_key(JAVSTASH_KEY_PATH)
             if manager is not None:
                 manager.javstash_api_key = None
+    if body.library_refresh_cron is not None:
+        try:
+            CronTrigger.from_crontab(body.library_refresh_cron)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid cron expression: {exc}",
+            ) from exc
+        request.app.state.library_refresh_cron = body.library_refresh_cron
+    if body.library_refresh_enabled is not None:
+        request.app.state.library_refresh_enabled = body.library_refresh_enabled
+    _refresh_enabled = request.app.state.library_refresh_enabled
+    _refresh_cron = request.app.state.library_refresh_cron
+    if _refresh_enabled:
+        schedule_library_refresh(request.app, _refresh_cron)
+    else:
+        unschedule_library_refresh(request.app)
     await asyncio.to_thread(
         save_config,
         request.app.state.config_path,
@@ -114,6 +139,8 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
             download_thread_count=request.app.state.download_thread_count,
             single_part_filename_template=request.app.state.single_part_filename_template,
             multi_part_filename_template=request.app.state.multi_part_filename_template,
+            library_refresh_enabled=request.app.state.library_refresh_enabled,
+            library_refresh_cron=request.app.state.library_refresh_cron,
         ),
     )
     return AppSettings(
@@ -123,4 +150,6 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
         javstash_enabled=request.app.state.javstash_enabled,
         single_part_filename_template=request.app.state.single_part_filename_template,
         multi_part_filename_template=request.app.state.multi_part_filename_template,
+        library_refresh_enabled=request.app.state.library_refresh_enabled,
+        library_refresh_cron=request.app.state.library_refresh_cron,
     )

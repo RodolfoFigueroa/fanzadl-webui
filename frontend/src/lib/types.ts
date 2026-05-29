@@ -56,6 +56,8 @@ export interface AppSettings {
     javstash_enabled: boolean;
     single_part_filename_template: string;
     multi_part_filename_template: string;
+    library_refresh_enabled: boolean;
+    library_refresh_cron: string;
 }
 
 export interface AppSettingsPatch {
@@ -65,4 +67,6 @@ export interface AppSettingsPatch {
     javstash_api_key?: string | null;
     single_part_filename_template?: string;
     multi_part_filename_template?: string;
+    library_refresh_enabled?: boolean;
+    library_refresh_cron?: string;
 }

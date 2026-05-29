@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fanzadl.exceptions import AuthExpiredError
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -35,6 +36,7 @@ from fanzadl_webui.routes import (
     streams,
     url,
 )
+from fanzadl_webui.scheduler import schedule_library_refresh
 from fanzadl_webui.token_store import delete_tokens, load_tokens, save_tokens
 
 logger = logging.getLogger(__name__)
@@ -70,6 +72,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.multi_part_filename_template: str = (
             _config.multi_part_filename_template
         )
+        app.state.library_refresh_enabled: bool = _config.library_refresh_enabled
+        app.state.library_refresh_cron: str = _config.library_refresh_cron
         app.state.config_path: Path = CONFIG_PATH
         app.state.download_slot_condition = asyncio.Condition()
         app.state.background_tasks: set[asyncio.Task] = set()
@@ -101,6 +105,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.save_api_key_fn = save_api_key_fn
         app.state.javstash_api_key: str | None = _javstash_api_key
         app.state.javstash_enabled: bool = _javstash_api_key is not None
+
+        _scheduler = AsyncIOScheduler()
+        _scheduler.start()
+        app.state.scheduler = _scheduler
 
         if _enc_key_str:
             tokens = load_tokens(TOKEN_STORE_PATH, _enc_key)
@@ -152,7 +160,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     )
                     delete_tokens(TOKEN_STORE_PATH)
 
-        yield
+        if _config.library_refresh_enabled:
+            schedule_library_refresh(app, _config.library_refresh_cron)
+
+        try:
+            yield
+        finally:
+            _scheduler.shutdown(wait=False)
 
 
 app = FastAPI(lifespan=lifespan)

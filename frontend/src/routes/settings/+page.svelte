@@ -1,4 +1,5 @@
 <script lang="ts">
+import cronstrue from 'cronstrue';
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import {
@@ -14,7 +15,7 @@ import {
     renderFilenameTemplate,
 } from '$lib/filename';
 
-type Tab = 'download' | 'javstash' | 'filenames' | 'logging';
+type Tab = 'download' | 'javstash' | 'filenames' | 'logging' | 'schedule';
 let activeTab = $state<Tab>('download');
 
 async function handleLogout() {
@@ -39,6 +40,12 @@ let multiPartTemplate = $state(
     getCachedSettings()?.multi_part_filename_template ??
         DEFAULT_MULTI_PART_TEMPLATE,
 );
+let scheduleEnabled = $state(
+    getCachedSettings()?.library_refresh_enabled ?? false,
+);
+let refreshCron = $state(
+    getCachedSettings()?.library_refresh_cron ?? '0 0 * * *',
+);
 
 let javstashKeyInput = $state('');
 let javstashSaving = $state(false);
@@ -52,6 +59,8 @@ onMount(async () => {
     javstashEnabled = s.javstash_enabled;
     singlePartTemplate = s.single_part_filename_template;
     multiPartTemplate = s.multi_part_filename_template;
+    scheduleEnabled = s.library_refresh_enabled;
+    refreshCron = s.library_refresh_cron;
 });
 
 async function handleSaveJavstashKey() {
@@ -91,6 +100,7 @@ const tabs: { id: Tab; label: string }[] = [
     { id: 'javstash', label: 'JAVStash' },
     { id: 'filenames', label: 'Filenames' },
     { id: 'logging', label: 'Logging' },
+    { id: 'schedule', label: 'Schedule' },
 ];
 
 const INVALID_CHARS = /[\\:*?"<>|]/;
@@ -128,6 +138,17 @@ let multiPartErrors = $derived(
         renderFilenameTemplate(multiPartTemplate, DUMMY_LIBRARY_ITEM, 1),
     ),
 );
+
+type CronResult =
+    | { ok: true; description: string }
+    | { ok: false; error: string };
+let cronResult = $derived.by<CronResult>(() => {
+    try {
+        return { ok: true, description: cronstrue.toString(refreshCron) };
+    } catch {
+        return { ok: false, error: 'Invalid cron expression' };
+    }
+});
 </script>
 
 <svelte:head>
@@ -384,6 +405,64 @@ let multiPartErrors = $derived(
                     <option value="WARNING">WARNING</option>
                     <option value="ERROR">ERROR</option>
                 </select>
+            </div>
+
+        {:else if activeTab === 'schedule'}
+            <div>
+                <label class="flex items-center gap-3 cursor-pointer w-fit">
+                    <input
+                        type="checkbox"
+                        bind:checked={scheduleEnabled}
+                        onchange={() =>
+                            updateSettings({ library_refresh_enabled: scheduleEnabled })}
+                        class="w-4 h-4 rounded border border-th-border-input bg-th-input
+                            accent-th-border-strong cursor-pointer"
+                    />
+                    <span class="text-sm font-medium text-th-text-muted">
+                        Enable periodic library refresh
+                    </span>
+                </label>
+                <p class="text-xs text-th-text-dim mt-1.5 mb-4">
+                    When enabled, the library is refreshed automatically on the
+                    schedule defined below.
+                </p>
+            </div>
+            <div>
+                <label
+                    class="block text-sm font-medium text-th-text-muted mb-1.5"
+                    for="refresh-cron"
+                >
+                    Refresh schedule
+                </label>
+                <p class="text-xs text-th-text-dim mb-2">
+                    Standard 5-field cron expression
+                </p>
+                <input
+                    id="refresh-cron"
+                    type="text"
+                    bind:value={refreshCron}
+                    disabled={!scheduleEnabled}
+                    oninput={() => { /* triggers $derived re-evaluation */ }}
+                    onchange={() => {
+                        if (cronResult.ok)
+                            updateSettings({ library_refresh_cron: refreshCron });
+                    }}
+                    class="w-full bg-th-input border rounded-lg px-3 py-2 text-th-text font-mono text-sm
+                        focus:outline-none focus:ring-2 focus:border-transparent transition-shadow
+                        disabled:opacity-50 disabled:cursor-not-allowed
+                        {!cronResult.ok && scheduleEnabled
+                            ? 'border-red-500 focus:ring-red-500'
+                            : 'border-th-border-input focus:ring-th-border-strong'}"
+                />
+                {#if scheduleEnabled}
+                    {#if cronResult.ok}
+                        <p class="text-xs text-th-text-dim mt-1.5">
+                            {cronResult.description}
+                        </p>
+                    {:else}
+                        <p class="text-xs text-red-400 mt-1.5">{cronResult.error}</p>
+                    {/if}
+                {/if}
             </div>
         {/if}
 
