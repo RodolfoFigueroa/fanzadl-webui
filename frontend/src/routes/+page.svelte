@@ -154,35 +154,7 @@ onMount(async () => {
 	</button>
 </div>
 
-{#if loading}
-	<div
-		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
-	>
-		{#each { length: 12 } as _}
-			<div class="bg-th-surface rounded-xl overflow-hidden animate-pulse">
-				<div class="bg-th-input" style="aspect-ratio: 16/10"></div>
-				<div class="p-3 space-y-2">
-					<div class="h-3 bg-th-input rounded w-3/4"></div>
-					<div class="h-3 bg-th-input rounded w-1/2"></div>
-					<div class="h-7 bg-th-input rounded mt-2"></div>
-				</div>
-			</div>
-		{/each}
-	</div>
-{:else if error}
-	<div
-		class="text-red-400 bg-red-900/20 border border-red-800 rounded-lg p-4"
-	>
-		{error}
-	</div>
-{:else if library.length === 0}
-	<div class="text-center text-th-text-dim mt-24">
-		<p class="text-lg mb-2">Your library is empty.</p>
-		<p class="text-sm">
-			Click <strong>Refresh Library</strong> to fetch your titles from Fanza.
-		</p>
-	</div>
-{:else}
+{#if library.length > 0}
 	<div class="flex items-center gap-2 mb-4">
 		<select
 			bind:value={sortField}
@@ -204,6 +176,70 @@ onMount(async () => {
 			{sortAsc ? "↑" : "↓"}
 		</button>
 	</div>
+{/if}
+
+{#if loading}
+	<div
+		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+	>
+		{#each { length: 6 } as _, i}
+			<div class="bg-th-surface border border-th-border rounded-xl overflow-hidden animate-pulse flex flex-col
+				{i === 2 ? 'hidden sm:flex' : ''}
+				{i === 3 ? 'hidden md:flex' : ''}
+				{i === 4 ? 'hidden lg:flex' : ''}
+				{i === 5 ? 'hidden xl:flex' : ''}
+			">
+				<!-- content ID + link badge -->
+				<div class="px-3 pt-2 pb-2 flex items-center justify-between">
+					<div class="h-5 flex items-center w-2/5">
+						<div class="h-3.5 bg-th-input rounded w-full"></div>
+					</div>
+					<div class="h-5 flex items-center">
+						<div class="h-3.5 bg-th-input rounded w-6"></div>
+					</div>
+				</div>
+				<!-- cover image -->
+				<div class="bg-th-input" style="aspect-ratio: 3/4"></div>
+				<!-- info -->
+				<div class="p-3 flex flex-col gap-2 flex-1">
+					<!-- title: 2 lines matching text-sm leading-snug line-clamp-2 (~2.4rem) -->
+					<div class="flex flex-col justify-between min-h-[2.4rem]">
+						<div class="h-3.5 bg-th-input rounded w-full"></div>
+						<div class="h-3.5 bg-th-input rounded w-3/4"></div>
+					</div>
+					<!-- parts / date -->
+					<div class="h-4 flex items-center justify-between mt-auto">
+						<div class="h-3 bg-th-input rounded w-10"></div>
+						<div class="h-3 bg-th-input rounded w-16"></div>
+					</div>
+					<!-- downloaded count -->
+					<div class="h-4 flex items-center">
+						<div class="h-3 bg-th-input rounded w-24"></div>
+					</div>
+					<!-- expiry -->
+					<div class="h-4 flex items-center">
+						<div class="h-3 bg-th-input rounded w-28"></div>
+					</div>
+					<!-- button -->
+					<div class="h-8 bg-th-input rounded-lg mt-0.5"></div>
+				</div>
+			</div>
+		{/each}
+	</div>
+{:else if error}
+	<div
+		class="text-red-400 bg-red-900/20 border border-red-800 rounded-lg p-4"
+	>
+		{error}
+	</div>
+{:else if library.length === 0}
+	<div class="text-center text-th-text-dim mt-24">
+		<p class="text-lg mb-2">Your library is empty.</p>
+		<p class="text-sm">
+			Click <strong>Refresh Library</strong> to fetch your titles from Fanza.
+		</p>
+	</div>
+{:else}
 	<div
 		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
 	>

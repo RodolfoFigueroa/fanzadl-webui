@@ -43,7 +43,7 @@ const days = $derived(daysLeft(item.expire));
 		{expired ? 'opacity-50 grayscale' : ''}"
 >
 	<!-- Content ID -->
-	<div class="px-3 pt-2 flex items-center justify-between">
+	<div class="px-3 pt-2 pb-2 flex items-center justify-between">
 		<span class="text-sm text-th-text font-mono font-medium">{item.content_id}</span>
 		<div class="flex items-center gap-2">
 			{#if javstashEnabled && item.javstash_id}
