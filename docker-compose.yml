@@ -6,8 +6,6 @@ services:
       - "4352:4352"
     env_file:
       - .env
-    environment:
-      - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}
     volumes:
       - ${DOWNLOAD_DIR}:/download
       - image_cache:/image_cache
