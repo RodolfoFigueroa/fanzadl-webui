@@ -5,7 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "fanzadl",
+    "cryptography>=44.0.0",
+    "fanzadl==0.1.14",
     "fastapi>=0.136.1",
     "httpx>=0.28.1",
     "m3u8>=6.0.0",
@@ -20,7 +21,7 @@ select = ["ALL"]
 ignore = ["D", "COM812", "PLR2004"]
 
 [tool.uv.sources]
-fanzadl = { git = "https://github.com/RodolfoFigueroa/FanzaDL", tag = "v0.1.7" }
+fanzadl = { git = "https://github.com/RodolfoFigueroa/FanzaDL" }
 
 [dependency-groups]
 dev = ["ipykernel<7", "pre-commit>=4.6.0"]

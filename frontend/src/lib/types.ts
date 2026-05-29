@@ -29,6 +29,19 @@ export interface LibraryItem {
     javstash_studio_code: string | null;
 }
 
+export interface ExpiredLibraryItem {
+    mylibrary_id: number;
+    content_id: string;
+    title: string;
+    content_type: 'video' | 'vr';
+    package_image_url: string;
+    purchase_date: string;
+    expire: string;
+    trans_type: 'download' | 'stream';
+    javstash_id: string | null;
+    javstash_studio_code: string | null;
+}
+
 export interface StreamVariant {
     index: number;
     bandwidth: number;

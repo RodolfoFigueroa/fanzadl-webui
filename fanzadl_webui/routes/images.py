@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/images")
 
 
-def _cache_path(cache_dir: Path, mylibrary_id: int) -> Path:
-    return cache_dir / f"{mylibrary_id}.jpg"
+def _cache_path(cache_dir: Path, content_id: str) -> Path:
+    return cache_dir / f"{content_id}.jpg"
 
 
 async def _fetch_and_cache(
@@ -35,8 +35,9 @@ async def precache_all(
     http_client: httpx.AsyncClient,
     cache_dir: Path,
 ) -> None:
-    for mylibrary_id, item in manager.library.items():
-        dest = _cache_path(cache_dir, mylibrary_id)
+    all_items = list(manager.library.values()) + list(manager.expired_library.values())
+    for item in all_items:
+        dest = _cache_path(cache_dir, item.content_id)
         if dest.exists():
             continue
 
@@ -45,26 +46,27 @@ async def precache_all(
 
 
 def purge_stale(manager: FanzaDLManager, cache_dir: Path) -> None:
+    known = {item.content_id for item in manager.library.values()} | {
+        item.content_id for item in manager.expired_library.values()
+    }
     for cached in cache_dir.glob("*.jpg"):
-        try:
-            mylibrary_id = int(cached.stem)
-        except ValueError:
-            cached.unlink()
-            continue
-        if mylibrary_id not in manager.library:
+        if cached.stem not in known:
             cached.unlink()
 
 
-@router.get("/{mylibrary_id}")
+@router.get("/{content_id}")
 async def get_image(
-    mylibrary_id: int,
+    content_id: str,
     request: Request,
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
 ) -> FileResponse:
-    dest = _cache_path(IMAGE_CACHE_DIR, mylibrary_id)
+    dest = _cache_path(IMAGE_CACHE_DIR, content_id)
 
     if not dest.exists():
-        item = manager.library.get(mylibrary_id)
+        all_items = list(manager.library.values()) + list(
+            manager.expired_library.values()
+        )
+        item = next((i for i in all_items if i.content_id == content_id), None)
         if item is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

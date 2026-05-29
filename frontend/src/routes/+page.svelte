@@ -2,17 +2,20 @@
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import {
+    deleteExpiredItem,
     getCachedLibrary,
+    getExpiredLibrary,
     getLibrary,
     getSettings,
     refreshLibrary,
 } from '$lib/api';
 import DownloadModal from '$lib/components/DownloadModal.svelte';
 import VideoCard from '$lib/components/VideoCard.svelte';
-import type { LibraryItem } from '$lib/types';
+import type { ExpiredLibraryItem, LibraryItem } from '$lib/types';
 
 const _cached = getCachedLibrary();
 let library = $state<LibraryItem[]>(_cached ? Object.values(_cached) : []);
+let expiredLibrary = $state<ExpiredLibraryItem[]>([]);
 let loading = $state(_cached === null);
 let error = $state('');
 let refreshing = $state(false);
@@ -50,6 +53,26 @@ const sortedLibrary = $derived(
     }),
 );
 
+const sortedExpiredLibrary = $derived(
+    [...expiredLibrary].sort((a, b) => {
+        let cmp = 0;
+        if (sortField === 'title') {
+            cmp = a.title.localeCompare(b.title);
+        } else if (sortField === 'purchase_date') {
+            cmp =
+                new Date(a.purchase_date).getTime() -
+                new Date(b.purchase_date).getTime();
+        } else if (sortField === 'parts') {
+            cmp = 0; // parts unavailable for expired items
+        } else if (sortField === 'expire') {
+            cmp = daysLeft(a.expire) - daysLeft(b.expire);
+        } else if (sortField === 'content_id') {
+            cmp = a.content_id.localeCompare(b.content_id);
+        }
+        return sortAsc ? cmp : -cmp;
+    }),
+);
+
 async function loadLibrary() {
     error = '';
     try {
@@ -60,11 +83,18 @@ async function loadLibrary() {
     } finally {
         loading = false;
     }
+    try {
+        const expired = await getExpiredLibrary();
+        expiredLibrary = Object.values(expired);
+    } catch {
+        // expired library unavailable; leave as empty
+    }
 }
 
 async function handleRefresh() {
     refreshing = true;
     loading = true;
+    expiredLibrary = [];
     try {
         await refreshLibrary();
         await loadLibrary();
@@ -173,6 +203,31 @@ onMount(async () => {
 	>
 		{#each sortedLibrary as item (item.mylibrary_id)}
 			<VideoCard {item} {javstashEnabled} onDownload={(i) => (selectedItem = i)} />
+		{/each}
+	</div>
+{/if}
+
+{#if expiredLibrary.length > 0}
+	<div class="mt-8 mb-4 flex items-center gap-3">
+		<h2 class="text-base font-semibold text-th-text-dim">Expired</h2>
+		<span class="text-xs text-th-text-faint bg-th-input rounded-full px-2 py-0.5">{expiredLibrary.length}</span>
+	</div>
+	<div
+		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+	>
+		{#each sortedExpiredLibrary as item (item.mylibrary_id)}
+			<VideoCard
+				{item}
+				{javstashEnabled}
+				onDelete={async (i) => {
+					try {
+						await deleteExpiredItem(i.mylibrary_id);
+						expiredLibrary = expiredLibrary.filter((e) => e.mylibrary_id !== i.mylibrary_id);
+					} catch (e) {
+						error = e instanceof Error ? e.message : 'Failed to remove expired item';
+					}
+				}}
+			/>
 		{/each}
 	</div>
 {/if}

@@ -1,15 +1,19 @@
 <script lang="ts">
-import type { LibraryItem } from '$lib/types';
+import type { ExpiredLibraryItem, LibraryItem } from '$lib/types';
 
 let {
     item,
     onDownload,
+    onDelete,
     javstashEnabled = false,
 }: {
-    item: LibraryItem;
-    onDownload: (item: LibraryItem) => void;
+    item: LibraryItem | ExpiredLibraryItem;
+    onDownload?: (item: LibraryItem) => void;
+    onDelete?: (item: ExpiredLibraryItem) => void;
     javstashEnabled?: boolean;
 } = $props();
+
+const expired = $derived('parts' in item === false);
 
 let imgError = $state(false);
 
@@ -33,7 +37,8 @@ const days = $derived(daysLeft(item.expire));
 
 <div
 	class="bg-th-surface border border-th-border rounded-xl overflow-hidden flex flex-col
-		hover:border-th-border-strong transition-colors"
+		hover:border-th-border-strong transition-colors
+		{expired ? 'opacity-50 grayscale' : ''}"
 >
 	<!-- Content ID -->
 	<div class="px-3 pt-2 flex items-center justify-between">
@@ -97,13 +102,15 @@ const days = $derived(daysLeft(item.expire));
 		<h3 class="text-sm font-medium text-th-text leading-snug line-clamp-2">
 			{item.title}
 		</h3>
-		<div
-			class="text-xs text-th-text-dim flex items-center justify-between mt-auto"
-		>
-			<span
-				>{item.parts || 1}
-				{(item.parts || 1) === 1 ? "part" : "parts"}</span
-			>
+		<div class="text-xs text-th-text-dim flex items-center justify-between mt-auto">
+			{#if !expired}
+				<span
+					>{'parts' in item ? item.parts : 1}
+					{('parts' in item ? item.parts : 1) === 1 ? "part" : "parts"}</span
+				>
+			{:else}
+				<span></span>
+			{/if}
 			<span>{formatDate(item.purchase_date)}</span>
 		</div>
 		<div
@@ -133,12 +140,28 @@ const days = $derived(daysLeft(item.expire));
 				<span>Expires in {days} days</span>
 			{/if}
 		</div>
-		<button
-			onclick={() => onDownload(item)}
-			class="mt-0.5 w-full bg-th-accent hover:bg-th-accent-hover text-th-accent-text text-sm
-				font-medium py-1.5 px-3 rounded-lg transition-colors"
-		>
-			Download
-		</button>
+		{#if !expired}
+			<button
+				onclick={() => onDownload?.(item as LibraryItem)}
+				class="mt-0.5 w-full bg-th-accent hover:bg-th-accent-hover text-th-accent-text text-sm
+					font-medium py-1.5 px-3 rounded-lg transition-colors"
+			>
+				Download
+			</button>
+		{:else}
+			<button
+				onclick={() => onDelete?.(item as ExpiredLibraryItem)}
+				title="Remove from tracking"
+				class="mt-0.5 w-full flex items-center justify-center gap-1.5 bg-th-input
+					hover:bg-th-input-nested text-th-text-dim hover:text-red-400 text-sm
+					py-1.5 px-3 rounded-lg transition-colors"
+			>
+				<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+						d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+				</svg>
+				<span>Remove</span>
+			</button>
+		{/if}
 	</div>
 </div>

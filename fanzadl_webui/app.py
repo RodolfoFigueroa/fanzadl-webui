@@ -6,14 +6,16 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
+from fanzadl.exceptions import AuthExpiredError
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 from starlette.types import Scope
 
-from .dependencies import IMAGE_CACHE_DIR
-from .routes import (
+from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, TOKEN_STORE_PATH
+from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
+from fanzadl_webui.routes import (
     auth,
     download,
     images,
@@ -23,13 +25,17 @@ from .routes import (
     streams,
     url,
 )
+from fanzadl_webui.token_store import delete_tokens, load_tokens, save_tokens
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    _default_log_level = os.environ.get("DEFAULT_LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
-        level=logging.INFO,
+        level=_default_log_level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
@@ -39,7 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.jobs: dict = {}
         app.state.queues: dict = {}
         app.state.max_concurrent_downloads: int = 3
-        app.state.log_level: str = "INFO"
+        app.state.log_level: str = _default_log_level
         app.state.download_slot_condition = asyncio.Condition()
         app.state.background_tasks: set[asyncio.Task] = set()
         app.state.login_lock = asyncio.Lock()
@@ -47,6 +53,55 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         _javstash_api_key = os.environ.get("JAVSTASH_API_KEY") or None
         app.state.javstash_api_key: str | None = _javstash_api_key
         app.state.javstash_enabled: bool = _javstash_api_key is not None
+
+        _enc_key_str = os.environ.get("TOKEN_ENCRYPTION_KEY")
+        if _enc_key_str:
+            _enc_key = _enc_key_str.encode()
+
+            def save_fn(user_id: str, refresh_token: str) -> None:
+                save_tokens(TOKEN_STORE_PATH, _enc_key, user_id, refresh_token)
+
+        else:
+
+            def save_fn(user_id: str, refresh_token: str) -> None:  # type: ignore[misc]
+                pass
+
+        app.state.save_fn = save_fn
+
+        if _enc_key_str:
+            tokens = load_tokens(TOKEN_STORE_PATH, _enc_key)
+            if tokens is not None:
+                _user_id, _refresh_token = tokens
+                try:
+                    _manager = await asyncio.to_thread(
+                        PersistingFanzaDLManager,
+                        user_id=_user_id,
+                        refresh_token=_refresh_token,
+                        save_fn=save_fn,
+                        javstash_api_key=_javstash_api_key,
+                        auto_populate_library=False,
+                    )
+                    await asyncio.to_thread(_manager.update_library)
+                    app.state.manager = _manager
+                    await asyncio.to_thread(
+                        images.purge_stale, _manager, IMAGE_CACHE_DIR
+                    )
+                    for _coro in (
+                        images.precache_all(_manager, client, IMAGE_CACHE_DIR),
+                        warm_all_details(_manager),
+                    ):
+                        _task = asyncio.create_task(_coro)
+                        app.state.background_tasks.add(_task)
+                        _task.add_done_callback(app.state.background_tasks.discard)
+                    logger.info("Session restored from token store")
+                except AuthExpiredError:
+                    logger.warning("Stored tokens are expired; deleting token store")
+                    delete_tokens(TOKEN_STORE_PATH)
+                except Exception:
+                    logger.exception(
+                        "Failed to restore session from token store; deleting token store"
+                    )
+                    delete_tokens(TOKEN_STORE_PATH)
 
         yield
 

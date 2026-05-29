@@ -3,6 +3,7 @@ import { goto } from '$app/navigation';
 import type {
     AppSettings,
     DownloadJob,
+    ExpiredLibraryItem,
     LibraryItem,
     StreamVariant,
 } from './types';
@@ -80,6 +81,18 @@ export async function getLibrary(): Promise<Record<string, LibraryItem>> {
 
 export async function refreshLibrary(): Promise<void> {
     await apiFetch('/api/refresh_library/', { method: 'POST' });
+}
+
+export async function getExpiredLibrary(): Promise<
+    Record<string, ExpiredLibraryItem>
+> {
+    return apiFetch<Record<string, ExpiredLibraryItem>>(
+        '/api/library/expired/',
+    );
+}
+
+export async function deleteExpiredItem(id: number): Promise<void> {
+    await apiFetch(`/api/library/expired/${id}`, { method: 'DELETE' });
 }
 
 export async function getStreams(

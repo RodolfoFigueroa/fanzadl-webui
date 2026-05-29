@@ -1,14 +1,15 @@
 import asyncio
 
 import requests
-from fanzadl import FanzaDLManager
 from fanzadl.exceptions import MalformedEmailError, WrongCredentialsError
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
-from fanzadl_webui.dependencies import IMAGE_CACHE_DIR
+from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, TOKEN_STORE_PATH
+from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes import images
 from fanzadl_webui.routes.download import cancel_active_jobs
+from fanzadl_webui.token_store import delete_tokens
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -34,11 +35,14 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
 
         try:
             manager = await asyncio.to_thread(
-                FanzaDLManager,
-                body.email,
-                body.password,
+                PersistingFanzaDLManager,
+                email=body.email,
+                password=body.password,
                 javstash_api_key=request.app.state.javstash_api_key,
+                save_fn=request.app.state.save_fn,
+                auto_populate_library=False,
             )
+            await asyncio.to_thread(manager.update_library)
         except MalformedEmailError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -61,13 +65,16 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
             ) from exc
 
         request.app.state.manager = manager
+        request.app.state.save_fn(manager.user_id, manager.refresh_token)
 
     await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
-    task = asyncio.create_task(
-        images.precache_all(manager, request.app.state.http_client, IMAGE_CACHE_DIR)
-    )
-    request.app.state.background_tasks.add(task)
-    task.add_done_callback(request.app.state.background_tasks.discard)
+    for coro in (
+        images.precache_all(manager, request.app.state.http_client, IMAGE_CACHE_DIR),
+        warm_all_details(manager),
+    ):
+        task = asyncio.create_task(coro)
+        request.app.state.background_tasks.add(task)
+        task.add_done_callback(request.app.state.background_tasks.discard)
 
     return {"status": "ok"}
 
@@ -87,6 +94,7 @@ async def logout(request: Request) -> dict[str, str]:
     jobs.clear()
     queues.clear()
 
+    delete_tokens(TOKEN_STORE_PATH)
     request.app.state.manager = None
 
     return {"status": "ok"}
