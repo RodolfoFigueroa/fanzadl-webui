@@ -3,7 +3,7 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from fanzadl_webui.api_key_store import delete_api_key
 from fanzadl_webui.config_store import AppConfig, save_config
@@ -79,6 +79,13 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
             request.app.state.save_api_key_fn(body.javstash_api_key)
             if manager is not None:
                 manager.javstash_api_key = body.javstash_api_key
+                # Propagate the key to every existing item and evict any
+                # None-cached _javstash_info so the cached_property re-fetches.
+                _secret = SecretStr(body.javstash_api_key)
+                for _item in manager.library.values():
+                    _item._javstash_api_key = _secret
+                    if _item.__dict__.get("_javstash_info") is None:
+                        _item.__dict__.pop("_javstash_info", None)
 
                 async def _warm_and_save() -> None:
                     await warm_all_details(manager)
