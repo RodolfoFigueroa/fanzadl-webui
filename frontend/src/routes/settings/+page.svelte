@@ -163,7 +163,7 @@ async function handleClearJavstashKey() {
                 class="block text-sm font-medium text-th-text-muted mb-1.5"
                 for="javstash-api-key"
             >
-                Javstash API key
+                JAVstash API key
             </label>
             <p class="text-xs text-th-text-dim mb-2">
                 API key for Javstash metadata lookups. Leave blank to keep the
