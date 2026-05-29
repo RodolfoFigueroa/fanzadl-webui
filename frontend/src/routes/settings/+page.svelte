@@ -23,12 +23,50 @@ let maxConcurrentDownloads = $state(
     getCachedSettings()?.max_concurrent_downloads ?? 3,
 );
 let logLevel = $state(getCachedSettings()?.log_level ?? 'INFO');
+let javstashEnabled = $state(getCachedSettings()?.javstash_enabled ?? false);
+
+let javstashKeyInput = $state('');
+let javstashSaving = $state(false);
+let javstashError = $state('');
 
 onMount(async () => {
     const s = await getSettings();
     maxConcurrentDownloads = s.max_concurrent_downloads;
     logLevel = s.log_level;
+    javstashEnabled = s.javstash_enabled;
 });
+
+async function handleSaveJavstashKey() {
+    if (!javstashKeyInput.trim()) return;
+    javstashSaving = true;
+    javstashError = '';
+    try {
+        const s = await updateSettings({
+            javstash_api_key: javstashKeyInput.trim(),
+        });
+        javstashEnabled = s.javstash_enabled;
+        javstashKeyInput = '';
+    } catch (e) {
+        javstashError =
+            e instanceof Error ? e.message : 'Failed to save API key';
+    } finally {
+        javstashSaving = false;
+    }
+}
+
+async function handleClearJavstashKey() {
+    javstashSaving = true;
+    javstashError = '';
+    try {
+        const s = await updateSettings({ javstash_api_key: null });
+        javstashEnabled = s.javstash_enabled;
+    } catch (e) {
+        javstashError =
+            e instanceof Error ? e.message : 'Failed to clear API key';
+    } finally {
+        javstashSaving = false;
+    }
+}
 </script>
 
 <svelte:head>
@@ -118,6 +156,56 @@ onMount(async () => {
                 <option value="WARNING">WARNING</option>
                 <option value="ERROR">ERROR</option>
             </select>
+        </div>
+        <div>
+            <label
+                class="block text-sm font-medium text-th-text-muted mb-1.5"
+                for="javstash-api-key"
+            >
+                Javstash API key
+            </label>
+            <p class="text-xs text-th-text-dim mb-2">
+                API key for Javstash metadata lookups. Leave blank to keep the
+                current key. The key is stored encrypted on the server.
+            </p>
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-xs {javstashEnabled ? 'text-green-400' : 'text-th-text-dim'}">
+                    {javstashEnabled ? 'Configured' : 'Not set'}
+                </span>
+            </div>
+            <div class="flex gap-2">
+                <input
+                    id="javstash-api-key"
+                    type="password"
+                    placeholder="Enter new API key"
+                    bind:value={javstashKeyInput}
+                    disabled={javstashSaving}
+                    class="flex-1 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
+                        focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
+                        transition-shadow disabled:opacity-50"
+                />
+                <button
+                    onclick={handleSaveJavstashKey}
+                    disabled={javstashSaving || !javstashKeyInput.trim()}
+                    class="px-3 py-2 text-sm rounded-lg border border-th-border hover:border-th-border-strong
+                        text-th-text-muted hover:text-th-text transition-colors disabled:opacity-40"
+                >
+                    Save
+                </button>
+                {#if javstashEnabled}
+                    <button
+                        onclick={handleClearJavstashKey}
+                        disabled={javstashSaving}
+                        class="px-3 py-2 text-sm rounded-lg border border-th-border hover:border-red-800
+                            text-th-text-dim hover:text-red-400 transition-colors disabled:opacity-40"
+                    >
+                        Clear
+                    </button>
+                {/if}
+            </div>
+            {#if javstashError}
+                <p class="text-xs text-red-400 mt-1">{javstashError}</p>
+            {/if}
         </div>
     </div>
 

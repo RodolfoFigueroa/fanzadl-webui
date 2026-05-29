@@ -13,8 +13,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 from starlette.types import Scope
 
+from fanzadl_webui.api_key_store import load_api_key, save_api_key
 from fanzadl_webui.dependencies import (
     IMAGE_CACHE_DIR,
+    JAVSTASH_KEY_PATH,
     LIBRARY_CACHE_PATH,
     TOKEN_STORE_PATH,
 )
@@ -55,10 +57,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.background_tasks: set[asyncio.Task] = set()
         app.state.login_lock = asyncio.Lock()
         app.state.stream_cache: dict = {}
-        _javstash_api_key = os.environ.get("JAVSTASH_API_KEY") or None
-        app.state.javstash_api_key: str | None = _javstash_api_key
-        app.state.javstash_enabled: bool = _javstash_api_key is not None
-
         _enc_key_str = os.environ.get("TOKEN_ENCRYPTION_KEY")
         if _enc_key_str:
             _enc_key = _enc_key_str.encode()
@@ -66,12 +64,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             def save_fn(user_id: str, refresh_token: str) -> None:
                 save_tokens(TOKEN_STORE_PATH, _enc_key, user_id, refresh_token)
 
+            def save_api_key_fn(api_key: str) -> None:
+                save_api_key(JAVSTASH_KEY_PATH, _enc_key, api_key)
+
+            _javstash_api_key = load_api_key(JAVSTASH_KEY_PATH, _enc_key)
         else:
 
             def save_fn(user_id: str, refresh_token: str) -> None:  # type: ignore[misc]
                 pass
 
+            def save_api_key_fn(api_key: str) -> None:  # type: ignore[misc]
+                pass
+
+            _javstash_api_key = None
+
         app.state.save_fn = save_fn
+        app.state.save_api_key_fn = save_api_key_fn
+        app.state.javstash_api_key: str | None = _javstash_api_key
+        app.state.javstash_enabled: bool = _javstash_api_key is not None
 
         if _enc_key_str:
             tokens = load_tokens(TOKEN_STORE_PATH, _enc_key)

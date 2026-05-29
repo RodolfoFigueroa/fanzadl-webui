@@ -2,6 +2,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { goto } from '$app/navigation';
 import type {
     AppSettings,
+    AppSettingsPatch,
     DownloadJob,
     ExpiredLibraryItem,
     LibraryItem,
@@ -169,7 +170,7 @@ export async function getSettings(): Promise<AppSettings> {
 }
 
 export async function updateSettings(
-    patch: Partial<AppSettings>,
+    patch: AppSettingsPatch,
 ): Promise<AppSettings> {
     const data = await apiFetch<AppSettings>('/api/settings/', {
         method: 'PATCH',

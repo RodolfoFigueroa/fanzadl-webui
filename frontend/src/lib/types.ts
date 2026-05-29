@@ -54,3 +54,9 @@ export interface AppSettings {
     log_level: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
     javstash_enabled: boolean;
 }
+
+export interface AppSettingsPatch {
+    max_concurrent_downloads?: number;
+    log_level?: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
+    javstash_api_key?: string | null;
+}
