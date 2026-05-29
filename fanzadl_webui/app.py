@@ -63,6 +63,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.max_concurrent_downloads: int = _config.max_concurrent_downloads
         app.state.log_level: str = _config.log_level
         app.state.download_thread_count: int = _config.download_thread_count
+        app.state.single_part_filename_template: str = (
+            _config.single_part_filename_template
+        )
+        app.state.multi_part_filename_template: str = (
+            _config.multi_part_filename_template
+        )
         app.state.config_path: Path = CONFIG_PATH
         app.state.download_slot_condition = asyncio.Condition()
         app.state.background_tasks: set[asyncio.Task] = set()

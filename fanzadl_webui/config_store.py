@@ -17,6 +17,8 @@ class AppConfig(BaseModel):
     max_concurrent_downloads: int = Field(default=3, ge=1)
     log_level: LogLevel = "INFO"
     download_thread_count: int = Field(default=4, ge=1, le=32)
+    single_part_filename_template: str = "{content_id}"
+    multi_part_filename_template: str = "{content_id}/{content_id}_{part:02}"
 
 
 def save_config(path: Path, config: AppConfig) -> None:

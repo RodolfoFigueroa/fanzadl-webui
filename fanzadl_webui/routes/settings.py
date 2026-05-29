@@ -26,6 +26,8 @@ class AppSettings(BaseModel):
     log_level: LogLevel
     download_thread_count: int
     javstash_enabled: bool
+    single_part_filename_template: str
+    multi_part_filename_template: str
 
 
 class AppSettingsPatch(BaseModel):
@@ -33,6 +35,8 @@ class AppSettingsPatch(BaseModel):
     log_level: LogLevel | None = None
     download_thread_count: int | None = Field(default=None, ge=1, le=32)
     javstash_api_key: str | None = None
+    single_part_filename_template: str | None = None
+    multi_part_filename_template: str | None = None
 
 
 @router.get("/settings/")
@@ -42,6 +46,8 @@ def get_settings(request: Request) -> AppSettings:
         log_level=request.app.state.log_level,
         download_thread_count=request.app.state.download_thread_count,
         javstash_enabled=request.app.state.javstash_enabled,
+        single_part_filename_template=request.app.state.single_part_filename_template,
+        multi_part_filename_template=request.app.state.multi_part_filename_template,
     )
 
 
@@ -57,6 +63,14 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
         logging.getLogger().setLevel(body.log_level)
     if body.download_thread_count is not None:
         request.app.state.download_thread_count = body.download_thread_count
+    if body.single_part_filename_template is not None:
+        request.app.state.single_part_filename_template = (
+            body.single_part_filename_template
+        )
+    if body.multi_part_filename_template is not None:
+        request.app.state.multi_part_filename_template = (
+            body.multi_part_filename_template
+        )
     if "javstash_api_key" in body.model_fields_set:
         manager = request.app.state.manager
         if body.javstash_api_key:
@@ -91,6 +105,8 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
             max_concurrent_downloads=request.app.state.max_concurrent_downloads,
             log_level=request.app.state.log_level,
             download_thread_count=request.app.state.download_thread_count,
+            single_part_filename_template=request.app.state.single_part_filename_template,
+            multi_part_filename_template=request.app.state.multi_part_filename_template,
         ),
     )
     return AppSettings(
@@ -98,4 +114,6 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
         log_level=request.app.state.log_level,
         download_thread_count=request.app.state.download_thread_count,
         javstash_enabled=request.app.state.javstash_enabled,
+        single_part_filename_template=request.app.state.single_part_filename_template,
+        multi_part_filename_template=request.app.state.multi_part_filename_template,
     )

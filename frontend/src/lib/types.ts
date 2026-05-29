@@ -54,6 +54,8 @@ export interface AppSettings {
     log_level: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
     download_thread_count: number;
     javstash_enabled: boolean;
+    single_part_filename_template: string;
+    multi_part_filename_template: string;
 }
 
 export interface AppSettingsPatch {
@@ -61,4 +63,6 @@ export interface AppSettingsPatch {
     log_level?: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
     download_thread_count?: number;
     javstash_api_key?: string | null;
+    single_part_filename_template?: string;
+    multi_part_filename_template?: string;
 }

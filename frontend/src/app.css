@@ -2,6 +2,10 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+html {
+    font-size: 20px;
+}
+
 @theme {
     /* Base sakura palette — used for one-off accents and badges */
     --color-sakura-50: #fff5f7;

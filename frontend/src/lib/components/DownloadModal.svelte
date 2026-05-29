@@ -1,7 +1,18 @@
 <script lang="ts">
 import { onMount, untrack } from 'svelte';
 import { goto } from '$app/navigation';
-import { checkFilename, getJobs, getStreams, startDownload } from '$lib/api';
+import {
+    checkFilename,
+    getCachedSettings,
+    getJobs,
+    getStreams,
+    startDownload,
+} from '$lib/api';
+import {
+    DEFAULT_MULTI_PART_TEMPLATE,
+    DEFAULT_SINGLE_PART_TEMPLATE,
+    renderFilenameTemplate,
+} from '$lib/filename';
 import type { DownloadJob, LibraryItem, StreamVariant } from '$lib/types';
 
 let {
@@ -11,10 +22,6 @@ let {
     item: LibraryItem;
     onClose: () => void;
 } = $props();
-
-function sanitizeFilename(s: string): string {
-    return s.replace(/[\\/:*?"<>|]/g, '').trim();
-}
 
 function formatBandwidth(bps: number): string {
     if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
@@ -29,7 +36,15 @@ const partNumbers = untrack(() =>
         ? [0]
         : Array.from({ length: item.parts }, (_, i) => i + 1),
 );
-const baseFilename = untrack(() => item.content_id);
+
+const _isSinglePart = partNumbers.length === 1;
+const _template = untrack(() =>
+    _isSinglePart
+        ? (getCachedSettings()?.single_part_filename_template ??
+          DEFAULT_SINGLE_PART_TEMPLATE)
+        : (getCachedSettings()?.multi_part_filename_template ??
+          DEFAULT_MULTI_PART_TEMPLATE),
+);
 
 let enabledParts = $state<boolean[]>(partNumbers.map(() => true));
 
@@ -38,11 +53,7 @@ let selectedPerPart = $state<StreamVariant[]>(
     partNumbers.map(() => ({}) as StreamVariant),
 );
 let filenamesPerPart = $state<string[]>(
-    partNumbers.map((p) =>
-        partNumbers.length === 1
-            ? baseFilename
-            : `${baseFilename}/${baseFilename}_${String(p).padStart(2, '0')}`,
-    ),
+    partNumbers.map((p) => renderFilenameTemplate(_template, item, p)),
 );
 
 let loadingStreams = $state(true);
