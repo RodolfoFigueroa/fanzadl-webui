@@ -9,16 +9,6 @@ import type {
     StreamVariant,
 } from './types';
 
-const THREAD_COUNT_KEY = 'downloadThreadCount';
-
-export function getThreadCount(): number {
-    return parseInt(localStorage.getItem(THREAD_COUNT_KEY) ?? '16', 10);
-}
-
-export function setThreadCount(n: number): void {
-    localStorage.setItem(THREAD_COUNT_KEY, String(n));
-}
-
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -117,7 +107,6 @@ export async function startDownload(
     part: number,
     streamIndex: number,
     outputName: string,
-    threadCount: number = getThreadCount(),
 ): Promise<{ job_id: string }> {
     return apiFetch('/api/download/', {
         method: 'POST',
@@ -126,7 +115,6 @@ export async function startDownload(
             part,
             stream_index: streamIndex,
             output_name: outputName,
-            thread_count: threadCount,
         }),
     });
 }

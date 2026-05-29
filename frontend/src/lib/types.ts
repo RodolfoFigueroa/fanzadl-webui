@@ -52,11 +52,13 @@ export interface StreamVariant {
 export interface AppSettings {
     max_concurrent_downloads: number;
     log_level: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
+    download_thread_count: number;
     javstash_enabled: boolean;
 }
 
 export interface AppSettingsPatch {
     max_concurrent_downloads?: number;
     log_level?: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
+    download_thread_count?: number;
     javstash_api_key?: string | null;
 }

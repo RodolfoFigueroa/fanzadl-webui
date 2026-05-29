@@ -4,9 +4,7 @@ import { goto } from '$app/navigation';
 import {
     getCachedSettings,
     getSettings,
-    getThreadCount,
     logout,
-    setThreadCount,
     updateSettings,
 } from '$lib/api';
 
@@ -18,7 +16,7 @@ async function handleLogout() {
     }
 }
 
-let threadCount = $state(getThreadCount());
+let threadCount = $state(getCachedSettings()?.download_thread_count ?? 4);
 let maxConcurrentDownloads = $state(
     getCachedSettings()?.max_concurrent_downloads ?? 3,
 );
@@ -31,6 +29,7 @@ let javstashError = $state('');
 
 onMount(async () => {
     const s = await getSettings();
+    threadCount = s.download_thread_count;
     maxConcurrentDownloads = s.max_concurrent_downloads;
     logLevel = s.log_level;
     javstashEnabled = s.javstash_enabled;
@@ -95,8 +94,10 @@ async function handleClearJavstashKey() {
                 min="1"
                 max="32"
                 bind:value={threadCount}
-                onchange={() =>
-                    setThreadCount(Math.min(32, Math.max(1, threadCount)))}
+                onchange={() => {
+                    threadCount = Math.min(32, Math.max(1, threadCount));
+                    updateSettings({ download_thread_count: threadCount });
+                }}
                 class="w-24 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
 					focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
 					transition-shadow"

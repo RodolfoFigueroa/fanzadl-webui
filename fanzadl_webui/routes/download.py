@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 import m3u8
 from fanzadl.constants import USER_AGENT
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 from starlette.datastructures import State
 
@@ -45,7 +45,6 @@ class DownloadRequest(BaseModel):
     video_id: int
     part: int
     stream_index: int
-    thread_count: int = Field(default=4, ge=1, le=32)
 
 
 def _publish(job: DownloadJob, queues: Queues) -> None:
@@ -311,7 +310,6 @@ async def _run_download(  # noqa: PLR0913
     stream_index: int,
     save_dir: str,
     save_name: str,
-    thread_count: int,
     queues: Queues,
     concurrency: _ConcurrencyContext,
 ) -> None:
@@ -329,7 +327,6 @@ async def _run_download(  # noqa: PLR0913
         stream_index: Index into the m3u8 playlist variants.
         save_dir: Directory path where the output file will be written.
         save_name: Output filename stem (without extension).
-        thread_count: Number of download threads for N_m3u8DL-RE.
         queues: SSE subscriber queues, keyed by job ID.
         concurrency: Context providing the condition variable, job registry,
             and app state.
@@ -351,7 +348,12 @@ async def _run_download(  # noqa: PLR0913
     _publish(job, queues)
     try:
         try:
-            proc = await _launch_process(media_url, save_dir, save_name, thread_count)
+            proc = await _launch_process(
+                media_url,
+                save_dir,
+                save_name,
+                concurrency.app_state.download_thread_count,
+            )
             output_lines = await _stream_output(proc, job, queues)
         except Exception as exc:  # noqa: BLE001
             job.error = str(exc)
@@ -439,7 +441,6 @@ async def start_download(
             body.stream_index,
             save_dir,
             save_name,
-            body.thread_count,
             queues,
             concurrency,
         )

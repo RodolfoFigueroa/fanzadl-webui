@@ -14,7 +14,9 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 from fanzadl_webui.api_key_store import load_api_key, save_api_key
+from fanzadl_webui.config_store import load_config, save_config
 from fanzadl_webui.dependencies import (
+    CONFIG_PATH,
     IMAGE_CACHE_DIR,
     JAVSTASH_KEY_PATH,
     LIBRARY_CACHE_PATH,
@@ -46,13 +48,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
+    _config_exists = CONFIG_PATH.exists()
+    _config = load_config(CONFIG_PATH)
+    if not _config_exists:
+        _config = _config.model_copy(update={"log_level": _default_log_level})
+        save_config(CONFIG_PATH, _config)
+    logging.getLogger().setLevel(_config.log_level)
+
     async with httpx.AsyncClient() as client:
         app.state.http_client = client
         app.state.manager = None
         app.state.jobs: dict = {}
         app.state.queues: dict = {}
-        app.state.max_concurrent_downloads: int = 3
-        app.state.log_level: str = _default_log_level
+        app.state.max_concurrent_downloads: int = _config.max_concurrent_downloads
+        app.state.log_level: str = _config.log_level
+        app.state.download_thread_count: int = _config.download_thread_count
+        app.state.config_path: Path = CONFIG_PATH
         app.state.download_slot_condition = asyncio.Condition()
         app.state.background_tasks: set[asyncio.Task] = set()
         app.state.login_lock = asyncio.Lock()

@@ -1,13 +1,7 @@
 <script lang="ts">
 import { onMount, untrack } from 'svelte';
 import { goto } from '$app/navigation';
-import {
-    checkFilename,
-    getJobs,
-    getStreams,
-    getThreadCount,
-    startDownload,
-} from '$lib/api';
+import { checkFilename, getJobs, getStreams, startDownload } from '$lib/api';
 import type { DownloadJob, LibraryItem, StreamVariant } from '$lib/types';
 
 let {
@@ -191,7 +185,6 @@ async function handleSubmit() {
                               partNumbers[i],
                               selectedPerPart[i].index,
                               filenamesPerPart[i],
-                              getThreadCount(),
                           ),
                       ]
                     : [],
