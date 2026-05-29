@@ -389,8 +389,7 @@ let cronResult = $derived.by<CronResult>(() => {
                     Log level
                 </label>
                 <p class="text-xs text-th-text-dim mb-2">
-                    Controls the verbosity of server-side logging. DEBUG produces
-                    the most output; ERROR only logs failures.
+                    Controls the verbosity of server-side logging.
                 </p>
                 <select
                     id="log-level"
