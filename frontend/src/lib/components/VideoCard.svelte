@@ -105,8 +105,8 @@ const days = $derived(daysLeft(item.expire));
 		<div class="text-xs text-th-text-dim flex items-center justify-between mt-auto">
 			{#if !expired}
 				<span
-					>{'parts' in item ? item.parts : 1}
-					{('parts' in item ? item.parts : 1) === 1 ? "part" : "parts"}</span
+					>{('parts' in item ? item.parts || 1 : 1)}
+					{('parts' in item ? item.parts || 1 : 1) === 1 ? "part" : "parts"}</span
 				>
 			{:else}
 				<span></span>
