@@ -207,9 +207,8 @@ onMount(async () => {
 						<div class="h-3.5 bg-th-input rounded w-full"></div>
 						<div class="h-3.5 bg-th-input rounded w-3/4"></div>
 					</div>
-					<!-- parts / date -->
-					<div class="h-4 flex items-center justify-between mt-auto">
-						<div class="h-3 bg-th-input rounded w-10"></div>
+					<!-- date -->
+					<div class="h-4 flex items-center mt-auto">
 						<div class="h-3 bg-th-input rounded w-16"></div>
 					</div>
 					<!-- downloaded count -->

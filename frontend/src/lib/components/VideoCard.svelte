@@ -104,15 +104,7 @@ const days = $derived(daysLeft(item.expire));
 		<h3 class="text-sm font-medium text-th-text leading-snug line-clamp-2">
 			{item.title}
 		</h3>
-		<div class="text-xs text-th-text-dim flex items-center justify-between mt-auto">
-			{#if !expired}
-				<span
-					>{('parts' in item ? item.parts || 1 : 1)}
-					{('parts' in item ? item.parts || 1 : 1) === 1 ? "part" : "parts"}</span
-				>
-			{:else}
-				<span></span>
-			{/if}
+		<div class="text-xs text-th-text-dim flex items-center mt-auto">
 			<span>{formatDate(item.purchase_date)}</span>
 		</div>
 		{#if !expired}
