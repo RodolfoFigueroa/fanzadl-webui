@@ -100,8 +100,9 @@ class PersistingFanzaDLManager(FanzaDLManager):
             super().update_library()
         except Exception as exc:
             if self._library_cache:
-                msg = f"Library update failed with cache loaded. Exception:\n{exc}"
-                logger.warning(msg)
+                logger.warning(
+                    "Library update failed with cache loaded. Exception:\n%s", exc
+                )
 
                 assert self._library_cache_path is not None  # noqa: S101
                 delete_library_cache(self._library_cache_path)
@@ -118,6 +119,5 @@ class PersistingFanzaDLManager(FanzaDLManager):
                 item.__dict__["_javstash_info"] = javstash_info
             self._ids_restored_from_cache.add(item_id)
 
-            msg = f"Restored library item {item_id} from cache"
-            logger.info(msg)
+            logger.info("Restored library item %s from cache", item_id)
         self._library_cache = {}

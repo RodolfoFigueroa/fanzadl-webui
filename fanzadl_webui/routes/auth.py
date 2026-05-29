@@ -68,8 +68,7 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
                 detail="Could not connect to the authentication service.",
             ) from exc
         except Exception as exc:
-            err = f"Unexpected error during login: {exc}"
-            logger.exception(err)
+            logger.exception("Unexpected error during login: %s", exc)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Authentication failed. Please try again.",
