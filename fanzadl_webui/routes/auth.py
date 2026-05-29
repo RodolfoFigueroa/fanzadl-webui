@@ -1,15 +1,23 @@
 import asyncio
+import logging
 
 import requests
 from fanzadl.exceptions import MalformedEmailError, WrongCredentialsError
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
-from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, TOKEN_STORE_PATH
+from fanzadl_webui.dependencies import (
+    IMAGE_CACHE_DIR,
+    LIBRARY_CACHE_PATH,
+    TOKEN_STORE_PATH,
+)
+from fanzadl_webui.library_cache import delete_library_cache, save_library_cache
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes import images
 from fanzadl_webui.routes.download import cancel_active_jobs
 from fanzadl_webui.token_store import delete_tokens
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -40,6 +48,7 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
                 password=body.password,
                 javstash_api_key=request.app.state.javstash_api_key,
                 save_fn=request.app.state.save_fn,
+                library_cache_path=LIBRARY_CACHE_PATH,
                 auto_populate_library=False,
             )
             await asyncio.to_thread(manager.update_library)
@@ -59,6 +68,8 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
                 detail="Could not connect to the authentication service.",
             ) from exc
         except Exception as exc:
+            err = f"Unexpected error during login: {exc}"
+            logger.exception(err)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Authentication failed. Please try again.",
@@ -68,9 +79,17 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
         request.app.state.save_fn(manager.user_id, manager.refresh_token)
 
     await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
+
+    async def _warm_and_save() -> None:
+        await warm_all_details(manager)
+        await asyncio.to_thread(
+            save_library_cache, LIBRARY_CACHE_PATH, manager.user_id, manager
+        )
+        manager._ids_restored_from_cache = set()  # noqa: SLF001
+
     for coro in (
         images.precache_all(manager, request.app.state.http_client, IMAGE_CACHE_DIR),
-        warm_all_details(manager),
+        _warm_and_save(),
     ):
         task = asyncio.create_task(coro)
         request.app.state.background_tasks.add(task)
@@ -95,6 +114,7 @@ async def logout(request: Request) -> dict[str, str]:
     queues.clear()
 
     delete_tokens(TOKEN_STORE_PATH)
+    delete_library_cache(LIBRARY_CACHE_PATH)
     request.app.state.manager = None
 
     return {"status": "ok"}

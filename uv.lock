@@ -299,8 +299,8 @@ wheels = [
 
 [[package]]
 name = "fanzadl"
-version = "0.1.15"
-source = { git = "https://github.com/RodolfoFigueroa/FanzaDL#d02b140cda470feb04b247251e3d02efc76cc742" }
+version = "0.1.18"
+source = { git = "https://github.com/RodolfoFigueroa/FanzaDL#15037494c8663a142abeeae87157cc1a333222f2" }
 dependencies = [
     { name = "pydantic" },
     { name = "requests" },

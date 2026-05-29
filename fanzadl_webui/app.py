@@ -13,7 +13,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 from starlette.types import Scope
 
-from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, TOKEN_STORE_PATH
+from fanzadl_webui.dependencies import (
+    IMAGE_CACHE_DIR,
+    LIBRARY_CACHE_PATH,
+    TOKEN_STORE_PATH,
+)
+from fanzadl_webui.library_cache import save_library_cache
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes import (
     auth,
@@ -79,6 +84,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                         refresh_token=_refresh_token,
                         save_fn=save_fn,
                         javstash_api_key=_javstash_api_key,
+                        library_cache_path=LIBRARY_CACHE_PATH,
                         auto_populate_library=False,
                     )
                     await asyncio.to_thread(_manager.update_library)
@@ -86,9 +92,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     await asyncio.to_thread(
                         images.purge_stale, _manager, IMAGE_CACHE_DIR
                     )
+
+                    async def _warm_and_save() -> None:
+                        _restored = _manager._ids_restored_from_cache  # noqa: SLF001
+                        _new_ids = set(_manager.library) - _restored
+                        await warm_all_details(_manager, item_ids=_new_ids)
+                        await asyncio.to_thread(
+                            save_library_cache,
+                            LIBRARY_CACHE_PATH,
+                            _manager.user_id,
+                            _manager,
+                        )
+                        _manager._ids_restored_from_cache = set()  # noqa: SLF001
+
                     for _coro in (
                         images.precache_all(_manager, client, IMAGE_CACHE_DIR),
-                        warm_all_details(_manager),
+                        _warm_and_save(),
                     ):
                         _task = asyncio.create_task(_coro)
                         app.state.background_tasks.add(_task)
