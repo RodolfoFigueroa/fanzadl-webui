@@ -6,6 +6,13 @@ html {
     font-size: 20px;
 }
 
+input,
+select,
+textarea,
+button {
+    font-size: 0.875rem;
+}
+
 @theme {
     /* Base sakura palette — used for one-off accents and badges */
     --color-sakura-50: #fff5f7;
