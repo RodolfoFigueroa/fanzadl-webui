@@ -391,6 +391,7 @@ let multiPartErrors = $derived(
 
     <button
         onclick={handleLogout}
+        style="cursor: pointer"
         class="sm:hidden mt-4 w-full text-sm text-th-text-dim hover:text-red-400 border border-th-border
             hover:border-red-800 rounded-xl py-3 transition-colors"
     >

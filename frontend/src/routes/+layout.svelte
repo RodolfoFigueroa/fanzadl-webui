@@ -146,6 +146,7 @@ const navLinks = [
 			{#if page.url.pathname !== "/login"}
 				<button
 					onclick={handleLogout}
+					style="cursor: pointer"
 					class="hidden sm:block text-sm text-th-text-dim hover:text-th-text-muted transition-colors"
 				>
 					Logout
