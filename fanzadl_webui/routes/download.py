@@ -14,6 +14,7 @@ from sse_starlette.sse import EventSourceResponse
 from starlette.datastructures import State
 
 from fanzadl_webui.dependencies import DOWNLOAD_DIR
+from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.jobs import (
     DownloadJob,
     JobStatus,
@@ -362,6 +363,10 @@ async def _run_download(  # noqa: PLR0913
             _close_streams(job.job_id, queues)
             return
         _finalize_job(job, proc.returncode, output_lines, save_dir, save_name, queues)
+        if job.status == JobStatus.done:
+            _task = asyncio.create_task(rescan_and_store(concurrency.app_state))
+            _background_tasks.add(_task)
+            _task.add_done_callback(_background_tasks.discard)
     finally:
         async with concurrency.condition:
             concurrency.condition.notify_all()

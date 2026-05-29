@@ -82,6 +82,10 @@ export async function getExpiredLibrary(): Promise<
     );
 }
 
+export async function getDownloadCounts(): Promise<Record<string, number>> {
+    return apiFetch<Record<string, number>>('/api/library/download-counts/');
+}
+
 export async function deleteExpiredItem(id: number): Promise<void> {
     await apiFetch(`/api/library/expired/${id}`, { method: 'DELETE' });
 }

@@ -5,6 +5,7 @@ from fanzadl import FanzaDLManager
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, LIBRARY_CACHE_PATH, get_manager
+from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.library_cache import save_library_cache
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes.images import precache_all, purge_stale
@@ -28,6 +29,7 @@ async def refresh_library(
         ) from exc
     request.app.state.stream_cache = {}
     await asyncio.to_thread(purge_stale, manager, IMAGE_CACHE_DIR)
+    await rescan_and_store(request.app.state)
 
     async def _warm_and_save() -> None:
         new_ids: set[int] | None = None

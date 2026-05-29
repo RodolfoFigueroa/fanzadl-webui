@@ -4,6 +4,7 @@ import { goto } from '$app/navigation';
 import {
     deleteExpiredItem,
     getCachedLibrary,
+    getDownloadCounts,
     getExpiredLibrary,
     getLibrary,
     getSettings,
@@ -21,6 +22,7 @@ let error = $state('');
 let refreshing = $state(false);
 let selectedItem = $state<LibraryItem | null>(null);
 let javstashEnabled = $state(false);
+let downloadCounts = $state<Record<string, number>>({});
 
 type SortField = 'title' | 'purchase_date' | 'parts' | 'expire' | 'content_id';
 let sortField = $state<SortField>('purchase_date');
@@ -84,10 +86,14 @@ async function loadLibrary() {
         loading = false;
     }
     try {
-        const expired = await getExpiredLibrary();
+        const [expired, counts] = await Promise.all([
+            getExpiredLibrary(),
+            getDownloadCounts(),
+        ]);
         expiredLibrary = Object.values(expired);
+        downloadCounts = counts;
     } catch {
-        // expired library unavailable; leave as empty
+        // expired library / counts unavailable; leave as empty
     }
 }
 
@@ -202,7 +208,7 @@ onMount(async () => {
 		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
 	>
 		{#each sortedLibrary as item (item.mylibrary_id)}
-			<VideoCard {item} {javstashEnabled} onDownload={(i) => (selectedItem = i)} />
+			<VideoCard {item} {javstashEnabled} downloadedCount={downloadCounts[item.content_id] ?? 0} onDownload={(i) => (selectedItem = i)} />
 		{/each}
 	</div>
 {/if}

@@ -12,7 +12,7 @@ from fanzadl.models.video.unavailable import (
     UnavailableVideoItemContentsModel,
     UnavailableVRItemContentsModel,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from fanzadl_webui.dependencies import get_manager
@@ -133,6 +133,23 @@ def delete_expired_item(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Expired item not found"
         )
+
+
+@router.get("/download-counts/")
+def get_download_counts(
+    request: Request,
+    manager: Annotated[FanzaDLManager, Depends(get_manager)],  # noqa: ARG001
+) -> dict[str, int]:
+    """Return the number of downloaded parts for each library item.
+
+    Args:
+        request: Incoming FastAPI request providing app state.
+        manager: Injected manager (used only to enforce authentication).
+
+    Returns:
+        A dict mapping ``content_id`` to the count of downloaded ``.mp4`` files.
+    """
+    return request.app.state.download_counts
 
 
 @router.get("/")

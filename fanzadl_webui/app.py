@@ -22,6 +22,7 @@ from fanzadl_webui.dependencies import (
     LIBRARY_CACHE_PATH,
     TOKEN_STORE_PATH,
 )
+from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.library_cache import save_library_cache
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes import (
@@ -74,6 +75,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.background_tasks: set[asyncio.Task] = set()
         app.state.login_lock = asyncio.Lock()
         app.state.stream_cache: dict = {}
+        app.state.download_counts: dict = {}
         _enc_key_str = os.environ.get("TOKEN_ENCRYPTION_KEY")
         if _enc_key_str:
             _enc_key = _enc_key_str.encode()
@@ -135,6 +137,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     for _coro in (
                         images.precache_all(_manager, client, IMAGE_CACHE_DIR),
                         _warm_and_save(),
+                        rescan_and_store(app.state),
                     ):
                         _task = asyncio.create_task(_coro)
                         app.state.background_tasks.add(_task)
