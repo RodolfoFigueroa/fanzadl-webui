@@ -142,10 +142,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                         )
                         _manager._ids_restored_from_cache = set()  # noqa: SLF001
 
+                    await rescan_and_store(app.state)
                     for _coro in (
                         images.precache_all(_manager, client, IMAGE_CACHE_DIR),
                         _warm_and_save(),
-                        rescan_and_store(app.state),
                     ):
                         _task = asyncio.create_task(_coro)
                         app.state.background_tasks.add(_task)
