@@ -4,7 +4,7 @@ import { fly } from 'svelte/transition';
 import { afterNavigate, goto } from '$app/navigation';
 import { page } from '$app/state';
 import type { ToastNotification } from '$lib/api';
-import { getAuthStatus, logout, subscribeNotifications } from '$lib/api';
+import { getSettings, logout, subscribeNotifications } from '$lib/api';
 import Toast from '$lib/components/Toast.svelte';
 import type { ColorTheme } from '$lib/theme';
 import { getTheme, initTheme, setTheme } from '$lib/theme';
@@ -16,17 +16,25 @@ let theme = $state<ColorTheme>('system');
 type Notification = { id: number } & ToastNotification;
 let notifications = $state<Notification[]>([]);
 let nextId = 0;
+let notifController: AbortController | null = null;
 
 function dismiss(id: number) {
     notifications = notifications.filter((n) => n.id !== id);
 }
 
-onMount(() => {
-    const controller = new AbortController();
+function startNotifications() {
+    if (notifController && !notifController.signal.aborted) return;
+    notifController = new AbortController();
     subscribeNotifications((n) => {
         notifications = [...notifications, { id: nextId++, ...n }].slice(-5);
-    }, controller.signal);
-    return () => controller.abort();
+    }, notifController.signal);
+}
+
+onMount(() => {
+    if (window.location.pathname !== '/login') {
+        startNotifications();
+    }
+    return () => notifController?.abort();
 });
 
 $effect(() => {
@@ -41,9 +49,11 @@ function selectTheme(t: ColorTheme) {
 
 afterNavigate(async ({ to }) => {
     if (to?.url.pathname === '/login') return;
-    const s = await getAuthStatus();
-    if (!s.authenticated) {
-        goto('/login');
+    try {
+        await getSettings();
+        startNotifications();
+    } catch {
+        // apiFetch redirects to /login on 401
     }
 });
 

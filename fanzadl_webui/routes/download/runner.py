@@ -56,7 +56,7 @@ class _ConcurrencyContext:
     jobs: dict[str, DownloadJob]
     condition: asyncio.Condition
     app_state: AppState
-    global_job_queues: "list[asyncio.Queue[dict[str, int] | None]]" = None  # type: ignore[assignment]
+    global_job_queues: list[asyncio.Queue[dict[str, int] | None]] | None = None
 
 
 def _compute_active_counts(jobs: dict[str, DownloadJob]) -> dict[str, int]:
@@ -77,7 +77,7 @@ def _compute_active_counts(jobs: dict[str, DownloadJob]) -> dict[str, int]:
 
 def _publish_global(
     counts: dict[str, int],
-    global_job_queues: "list[asyncio.Queue[dict[str, int] | None]]",
+    global_job_queues: list[asyncio.Queue[dict[str, int] | None]] | None,
 ) -> None:
     """Broadcast active-count snapshot to all global SSE subscribers.
 
@@ -85,6 +85,8 @@ def _publish_global(
         counts: Mapping of content_id to active job count.
         global_job_queues: List of subscriber queues to broadcast to.
     """
+    if global_job_queues is None:
+        return
     for q in global_job_queues:
         q.put_nowait(counts)
 

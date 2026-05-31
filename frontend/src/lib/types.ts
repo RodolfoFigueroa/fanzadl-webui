@@ -66,7 +66,8 @@ export interface AppSettingsPatch {
 }
 
 export interface ApiKeyInfo {
-    api_key: string;
+    api_key: string | null;
+    api_key_preview: string;
     persisted: boolean;
 }
 

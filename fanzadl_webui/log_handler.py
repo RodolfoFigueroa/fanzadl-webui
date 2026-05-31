@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import logging
 import time
@@ -44,7 +45,5 @@ class NotificationHandler(logging.Handler):
             {"message": record.getMessage(), "level": record.levelname}
         )
         for q in list(self._queues):
-            try:
+            with contextlib.suppress(asyncio.QueueFull):
                 self._loop.call_soon_threadsafe(q.put_nowait, payload)
-            except asyncio.QueueFull:
-                pass

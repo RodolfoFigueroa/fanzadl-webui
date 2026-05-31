@@ -1,9 +1,9 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any
 
 import m3u8
+from fanzadl.models.video import LibraryItemContentsModel
 
 from fanzadl_webui.dependencies import DOWNLOAD_DIR
 from fanzadl_webui.events import publish_library_event
@@ -16,14 +16,14 @@ from fanzadl_webui.state import AppState
 logger = logging.getLogger(__name__)
 
 
-def _item_parts_list(item: Any) -> list[int]:
+def _item_parts_list(item: LibraryItemContentsModel) -> list[int]:
     """Return the list of part indices to enqueue for a library item."""
     if item.parts <= 1:
         return [item.parts]  # 0 or 1
     return list(range(1, item.parts + 1))
 
 
-def _item_fields(item: Any) -> dict[str, str | int | None]:
+def _item_fields(item: LibraryItemContentsModel) -> dict[str, str | int | None]:
     """Return the template field dict for a library item."""
     return {
         "mylibrary_id": item.mylibrary_id,
@@ -38,7 +38,7 @@ def _item_fields(item: Any) -> dict[str, str | int | None]:
 
 async def _enqueue_part(
     video_id: int,
-    item: Any,
+    item: LibraryItemContentsModel,
     part: int,
     output_name: str,
     app_state: AppState,
@@ -59,7 +59,12 @@ async def _enqueue_part(
         )
         return
 
-    playlist_url = item.highest.get_url(part)
+    highest = item.highest
+    if highest is None:
+        err = f"item {video_id} has no highest-quality stream; cannot auto-enqueue"
+        raise ValueError(err)
+
+    playlist_url = highest.get_url(part)
     response = await app_state.http_client.get(playlist_url, follow_redirects=True)
     response.raise_for_status()
     parsed = m3u8.loads(response.text, uri=playlist_url)

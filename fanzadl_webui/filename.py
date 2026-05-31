@@ -5,9 +5,17 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fanzadl_webui.state import AppState
+from collections.abc import Callable
 
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)(?::([^}]*))?\}")
 _ILLEGAL_CHARS_RE = re.compile(r'[\\:*?"<>|]')
+
+_FORMAT_FUNC_MAP: dict[str, Callable[[str], str]] = {
+    "U": str.upper,
+    "L": str.lower,
+    "C": lambda s: (s[0].upper() + s[1:].lower()) if s else s,
+    "T": lambda s: re.sub(r"\b\w", lambda m: m.group(0).upper(), s),
+}
 
 
 def _apply_spec(value: str | int | None, spec: str) -> str:
@@ -31,14 +39,8 @@ def _apply_spec(value: str | int | None, spec: str) -> str:
         return str(value)
 
     s = "" if value is None else str(value)
-    if spec == "U":
-        return s.upper()
-    if spec == "L":
-        return s.lower()
-    if spec == "C":
-        return (s[0].upper() + s[1:].lower()) if s else s
-    if spec == "T":
-        return re.sub(r"\b\w", lambda m: m.group(0).upper(), s)
+    if spec in _FORMAT_FUNC_MAP:
+        return _FORMAT_FUNC_MAP[spec](s)
     return s
 
 
@@ -165,7 +167,9 @@ async def rescan_and_store(app_state: "AppState") -> None:
             ``single_part_filename_template``, ``multi_part_filename_template``,
             and ``download_counts`` attributes.
     """
-    from fanzadl_webui.dependencies import DOWNLOAD_DIR  # avoid circular import
+    from fanzadl_webui.dependencies import (  # noqa: PLC0415 - avoid circular import
+        DOWNLOAD_DIR,
+    )
 
     manager = app_state.manager
     if manager is None:

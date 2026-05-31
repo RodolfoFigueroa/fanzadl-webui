@@ -12,11 +12,11 @@ from fanzadl.exceptions import AuthExpiredError
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import Scope
 
-from fanzadl_webui.api_key_store import load_api_key, save_api_key
-from fanzadl_webui.config_store import AppConfig, load_config, save_config
 from fanzadl_webui.dependencies import (
     CONFIG_PATH,
     IMAGE_CACHE_DIR,
@@ -42,7 +42,11 @@ from fanzadl_webui.routes import (
 )
 from fanzadl_webui.scheduler import schedule_library_refresh
 from fanzadl_webui.state import AppState
-from fanzadl_webui.token_store import delete_tokens, load_tokens, save_tokens
+from fanzadl_webui.store.api_key import load_api_key, save_api_key
+from fanzadl_webui.store.config import AppConfig, load_config, save_config
+from fanzadl_webui.store.token import delete_tokens, load_tokens, save_tokens
+
+_MAX_BODY_BYTES = 64 * 1024  # 64 KB
 
 logger = logging.getLogger(__name__)
 
@@ -94,13 +98,13 @@ def _make_persistence_handlers(
         local_api_key_persisted = True
     else:
 
-        def save_fn(user_id: str, refresh_token: str) -> None:  # type: ignore[misc]
+        def save_fn(user_id: str, refresh_token: str) -> None:
             pass
 
-        def save_api_key_fn(api_key: str) -> None:  # type: ignore[misc]
+        def save_api_key_fn(api_key: str) -> None:
             pass
 
-        def save_local_api_key_fn(api_key: str) -> None:  # type: ignore[misc]
+        def save_local_api_key_fn(api_key: str) -> None:
             pass
 
         javstash_api_key = None
@@ -117,7 +121,7 @@ def _make_persistence_handlers(
     )
 
 
-def _init_app_state(
+def _init_app_state(  # noqa: PLR0913
     app: FastAPI,
     config: AppConfig,
     client: httpx.AsyncClient,
@@ -126,7 +130,7 @@ def _init_app_state(
     save_local_api_key_fn: Callable[[str], None],
     javstash_api_key: str | None,
     local_api_key: str,
-    local_api_key_persisted: bool,
+    local_api_key_persisted: bool,  # noqa: FBT001
     scheduler: AsyncIOScheduler,
 ) -> None:
     app.state.app_state = AppState(
@@ -253,6 +257,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             )
         if config.library_refresh_enabled:
             schedule_library_refresh(app, config.library_refresh_cron)
+        if not enc_key_str:
+            logger.warning(
+                "TOKEN_ENCRYPTION_KEY is not set — token and API key persistence is "
+                "disabled. The local API key will be regenerated on every restart."
+            )
+        if os.environ.get("FANZADL_DEV") == "1":
+            logger.warning(
+                "FANZADL_DEV is enabled — developer mutation routes are active. "
+                "Do not use this setting in a production environment."
+            )
         try:
             yield
         finally:
@@ -262,6 +276,40 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.middleware("http")
+async def _max_body_size_middleware(
+    request: Request, call_next: RequestResponseEndpoint
+) -> Response:
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            if int(content_length) > _MAX_BODY_BYTES:
+                return Response(content="Request body too large", status_code=413)
+        except ValueError:
+            pass
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def _security_headers_middleware(
+    request: Request, call_next: RequestResponseEndpoint
+) -> Response:
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "connect-src 'self'"
+    )
+    return response
+
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(library.router, prefix="/api")

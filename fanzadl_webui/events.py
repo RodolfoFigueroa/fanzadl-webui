@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -27,11 +28,8 @@ def publish_library_event(app_state: AppState, event: LibraryEvent) -> None:
     app_state.library_event_buffer.append(entry)
     for q in list(app_state.library_event_queues):
         if q.full():
-            try:
+            with contextlib.suppress(asyncio.QueueEmpty):
                 q.get_nowait()
-            except asyncio.QueueEmpty:
-                pass
-        try:
+
+        with contextlib.suppress(asyncio.QueueFull):
             q.put_nowait(entry)
-        except asyncio.QueueFull:
-            pass

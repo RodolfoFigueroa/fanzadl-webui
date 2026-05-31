@@ -2,17 +2,20 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import httpx
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from datetime import datetime
+    from pathlib import Path
 
-from fanzadl_webui.config_store import LogLevel
-from fanzadl_webui.manager import PersistingFanzaDLManager
-from fanzadl_webui.models import DownloadJob, Queues, StreamVariant
+    import httpx
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    from fanzadl_webui.manager import PersistingFanzaDLManager
+    from fanzadl_webui.models import DownloadJob, Queues, StreamVariant
+    from fanzadl_webui.store.config import LogLevel
 
 
 @dataclass(kw_only=True)
@@ -59,3 +62,4 @@ class AppState:
         default_factory=lambda: deque(maxlen=50)
     )
     library_event_counter: int = 0
+    sessions: dict[str, datetime] = field(default_factory=dict)

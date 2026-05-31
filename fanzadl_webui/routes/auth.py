@@ -1,10 +1,13 @@
 import asyncio
 import logging
+import secrets
+import time
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import requests
 from fanzadl.exceptions import MalformedEmailError, WrongCredentialsError
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -20,9 +23,15 @@ from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes import images
 from fanzadl_webui.routes.download import cancel_active_jobs
 from fanzadl_webui.state import AppState
-from fanzadl_webui.token_store import delete_tokens
+from fanzadl_webui.store.token import delete_tokens
 
 logger = logging.getLogger(__name__)
+
+_SESSION_TTL_HOURS = 24
+_RATE_LIMIT_WINDOW = 60.0
+_RATE_LIMIT_MAX = 10
+_login_attempts: dict[str, list[float]] = {}
+_login_rate_lock = asyncio.Lock()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -32,18 +41,24 @@ class LoginRequest(BaseModel):
     password: str
 
 
-@router.get("/status")
-def auth_status(
-    app_state: Annotated[AppState, Depends(get_app_state)],
-) -> dict[str, bool]:
-    return {"authenticated": app_state.manager is not None}
-
-
 @router.post("/login")
 async def login(
+    request: Request,
     body: LoginRequest,
     app_state: Annotated[AppState, Depends(get_app_state)],
-) -> dict[str, str]:
+) -> JSONResponse:
+    ip = request.client.host if request.client else "unknown"
+    async with _login_rate_lock:
+        now = time.monotonic()
+        window_start = now - _RATE_LIMIT_WINDOW
+        recent = [t for t in _login_attempts.get(ip, []) if t > window_start]
+        if len(recent) >= _RATE_LIMIT_MAX:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many login attempts. Please try again later.",
+            )
+        _login_attempts[ip] = recent
+
     async with app_state.login_lock:
         if app_state.manager is not None:
             raise HTTPException(
@@ -68,6 +83,8 @@ async def login(
                 detail="Invalid email address.",
             ) from exc
         except WrongCredentialsError as exc:
+            async with _login_rate_lock:
+                _login_attempts.setdefault(ip, []).append(time.monotonic())
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password.",
@@ -78,7 +95,6 @@ async def login(
                 detail="Could not connect to the authentication service.",
             ) from exc
         except Exception as exc:
-            logger.exception("Unexpected error during login: %s", exc)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Authentication failed. Please try again.",
@@ -87,13 +103,22 @@ async def login(
         app_state.manager = manager
         app_state.save_fn(manager.user_id, manager.refresh_token)
 
+    async with _login_rate_lock:
+        _login_attempts.pop(ip, None)
+
+    session_token = secrets.token_urlsafe(32)
+    app_state.sessions[session_token] = datetime.now(UTC) + timedelta(
+        hours=_SESSION_TTL_HOURS
+    )
+
     response = JSONResponse(content={"status": "ok"})
     response.set_cookie(
         key="session",
-        value=app_state.local_api_key,
+        value=session_token,
         httponly=True,
         samesite="strict",
         secure=False,
+        max_age=_SESSION_TTL_HOURS * 3600,
     )
 
     await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
@@ -119,9 +144,14 @@ async def login(
 
 @router.post("/logout")
 async def logout(
+    request: Request,
     app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> JSONResponse:
+    session_token = request.cookies.get("session")
+    if session_token:
+        app_state.sessions.pop(session_token, None)
+
     for task in list(app_state.background_tasks):
         task.cancel()
     app_state.background_tasks.clear()

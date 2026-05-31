@@ -5,8 +5,7 @@ from typing import Annotated, Literal
 
 from fanzadl import FanzaDLManager
 from fanzadl.models.video import (
-    VideoLibraryItemContentsModel,
-    VRLibraryItemContentsModel,
+    LibraryItemContentsModel,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -23,8 +22,6 @@ from fanzadl_webui.library_db import (
     mark_item_unavailable,
 )
 from fanzadl_webui.state import AppState
-
-LibraryItem = VideoLibraryItemContentsModel | VRLibraryItemContentsModel
 
 
 class LibraryItemResponse(BaseModel):
@@ -53,7 +50,7 @@ class _DevExpireBody(BaseModel):
     mylibrary_id: int
 
 
-def _serialize(item: LibraryItem) -> LibraryItemResponse:
+def _serialize(item: LibraryItemContentsModel) -> LibraryItemResponse:
     return LibraryItemResponse(
         mylibrary_id=item.mylibrary_id,
         content_id=item.content_id,

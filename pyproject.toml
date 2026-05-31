@@ -19,7 +19,7 @@ dependencies = [
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D", "COM812", "PLR2004"]
+ignore = ["D", "COM812", "PLR2004", "ANN002", "ANN003"]
 
 [tool.uv.sources]
 fanzadl = { git = "https://github.com/RodolfoFigueroa/FanzaDL" }
@@ -29,4 +29,5 @@ dev = [
     "httpx-sse>=0.4.3",
     "ipykernel<7",
     "pre-commit>=4.6.0",
+    "pysonar>=1.6.0.4905",
 ]

@@ -7,7 +7,7 @@ import m3u8
 from fanzadl import FanzaDLManager
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import (
-    BaseModel,  # noqa: F401 – keep for existing StreamVariant import compatibility
+    BaseModel,  # noqa: F401
 )
 
 from fanzadl_webui.dependencies import get_app_state, get_manager, require_api_key

@@ -49,7 +49,7 @@ class FilenameCheckResponse(BaseModel):
 @router.get("/download/check-filename")
 def check_filename(
     _: Annotated[None, Depends(require_api_key)],
-    name: str = Query(..., min_length=1),
+    name: Annotated[str, Query(..., min_length=1)],
 ) -> FilenameCheckResponse:
     """Check whether an output file with the given name already exists.
 
@@ -60,11 +60,17 @@ def check_filename(
     Returns:
         A FilenameCheckResponse indicating whether ``{name}.mp4`` exists.
     """
-    return FilenameCheckResponse(file_exists=(DOWNLOAD_DIR / f"{name}.mp4").exists())
+    path = DOWNLOAD_DIR / f"{name}.mp4"
+    if not path.is_relative_to(DOWNLOAD_DIR):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename",
+        )
+    return FilenameCheckResponse(file_exists=path.exists())
 
 
 @router.post("/download/")
-async def start_download(
+async def start_download(  # noqa: PLR0913
     body: DownloadRequest,
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],

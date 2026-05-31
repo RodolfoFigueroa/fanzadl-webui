@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import sqlite3
@@ -158,10 +159,8 @@ def load_available_items(path: Path, user_id: str) -> dict[int, dict]:
 
         javstash_info = None
         if row["javstash_info_json"] is not None:
-            try:
+            with contextlib.suppress(json.JSONDecodeError, ValueError):
                 javstash_info = json.loads(row["javstash_info_json"])
-            except (json.JSONDecodeError, ValueError):
-                pass
 
         model = {
             "mylibrary_id": row["mylibrary_id"],
@@ -284,7 +283,7 @@ def update_javstash_info_db(path: Path, manager: FanzaDLManager) -> None:
     """
     try:
         conn = _get_conn(path)
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("Failed to open library DB for javstash update", exc_info=True)
         return
     try:

@@ -48,10 +48,6 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     return response.json() as Promise<T>;
 }
 
-export async function getAuthStatus(): Promise<{ authenticated: boolean }> {
-    return apiFetch('/api/auth/status');
-}
-
 export async function login(email: string, password: string): Promise<void> {
     await apiFetch('/api/auth/login', {
         method: 'POST',

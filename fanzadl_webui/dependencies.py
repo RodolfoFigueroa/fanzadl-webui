@@ -1,4 +1,5 @@
 import secrets
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -40,8 +41,10 @@ def require_api_key(
     key = app_state.local_api_key
     if x_api_key is not None and secrets.compare_digest(x_api_key, key):
         return
-    if session is not None and secrets.compare_digest(session, key):
-        return
+    if session is not None:
+        expiry = app_state.sessions.get(session)
+        if expiry is not None and datetime.now(UTC) < expiry:
+            return
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or missing API key",

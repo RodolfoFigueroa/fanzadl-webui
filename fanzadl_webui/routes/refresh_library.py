@@ -28,6 +28,62 @@ router = APIRouter()
 _background_tasks: set[asyncio.Task] = set()
 
 
+def _publish_library_diff(
+    old_snapshot: dict[int, str],
+    manager: FanzaDLManager,
+    app_state: AppState,
+) -> None:
+    current_ids = set(manager.library)
+    old_ids_set = set(old_snapshot)
+    for vid_id in current_ids - old_ids_set:
+        item = manager.library.get(vid_id)
+        if item is not None:
+            publish_library_event(
+                app_state,
+                LibraryEvent(
+                    type="item_added",
+                    content_id=item.content_id,
+                    title=getattr(item, "title", None),
+                    mylibrary_id=vid_id,
+                ),
+            )
+    for vid_id in old_ids_set - current_ids:
+        publish_library_event(
+            app_state,
+            LibraryEvent(
+                type="item_expired",
+                content_id=old_snapshot[vid_id],
+                mylibrary_id=vid_id,
+            ),
+        )
+
+
+async def _warm_save_and_enqueue(
+    manager: FanzaDLManager,
+    app_state: AppState,
+    old_snapshot: dict[int, str],
+) -> None:
+    new_ids: set[int] | None = None
+    if isinstance(manager, PersistingFanzaDLManager):
+        new_ids = set(manager.library) - manager._ids_restored_from_cache  # noqa: SLF001
+    await warm_all_details(manager, item_ids=new_ids)
+    if isinstance(manager, PersistingFanzaDLManager):
+        await asyncio.to_thread(
+            save_library_db,
+            LIBRARY_DB_PATH,
+            manager.user_id,
+            manager,
+            new_ids or set(),
+        )
+        manager._ids_restored_from_cache = set()  # noqa: SLF001
+    _publish_library_diff(old_snapshot, manager, app_state)
+    auto_new_ids = (new_ids or set()) if app_state.auto_download_new_items else set()
+    if app_state.auto_download_new_items and new_ids:
+        await auto_enqueue_new_items(new_ids, app_state)
+    if app_state.auto_download_missing_parts:
+        await auto_enqueue_missing_parts(auto_new_ids, app_state)
+
+
 @router.post("/refresh_library/")
 async def refresh_library(
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
@@ -47,55 +103,9 @@ async def refresh_library(
     app_state.stream_cache = {}
     await asyncio.to_thread(purge_stale, manager, IMAGE_CACHE_DIR)
     await rescan_and_store(app_state)
-
-    async def _warm_and_save() -> None:
-        new_ids: set[int] | None = None
-        if isinstance(manager, PersistingFanzaDLManager):
-            new_ids = set(manager.library) - manager._ids_restored_from_cache  # noqa: SLF001
-        await warm_all_details(manager, item_ids=new_ids)
-        if isinstance(manager, PersistingFanzaDLManager):
-            await asyncio.to_thread(
-                save_library_db,
-                LIBRARY_DB_PATH,
-                manager.user_id,
-                manager,
-                new_ids or set(),
-            )
-            manager._ids_restored_from_cache = set()  # noqa: SLF001
-        current_ids = set(manager.library)
-        old_ids_set = set(old_snapshot)
-        for vid_id in current_ids - old_ids_set:
-            item = manager.library.get(vid_id)
-            if item is not None:
-                publish_library_event(
-                    app_state,
-                    LibraryEvent(
-                        type="item_added",
-                        content_id=item.content_id,
-                        title=getattr(item, "title", None),
-                        mylibrary_id=vid_id,
-                    ),
-                )
-        for vid_id in old_ids_set - current_ids:
-            publish_library_event(
-                app_state,
-                LibraryEvent(
-                    type="item_expired",
-                    content_id=old_snapshot[vid_id],
-                    mylibrary_id=vid_id,
-                ),
-            )
-        auto_new_ids = (
-            (new_ids or set()) if app_state.auto_download_new_items else set()
-        )
-        if app_state.auto_download_new_items and new_ids:
-            await auto_enqueue_new_items(new_ids, app_state)
-        if app_state.auto_download_missing_parts:
-            await auto_enqueue_missing_parts(auto_new_ids, app_state)
-
     for coro in (
         precache_all(manager, app_state.http_client, IMAGE_CACHE_DIR),
-        _warm_and_save(),
+        _warm_save_and_enqueue(manager, app_state, old_snapshot),
     ):
         task = asyncio.create_task(coro)
         _background_tasks.add(task)

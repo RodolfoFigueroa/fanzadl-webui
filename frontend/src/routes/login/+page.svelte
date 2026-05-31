@@ -1,7 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
-import { getAuthStatus, login } from '$lib/api';
+import { getSettings, login } from '$lib/api';
 
 let email = $state('');
 let password = $state('');
@@ -9,9 +9,11 @@ let error = $state<string | null>(null);
 let loading = $state(false);
 
 onMount(async () => {
-    const s = await getAuthStatus();
-    if (s.authenticated) {
+    try {
+        await getSettings();
         goto('/');
+    } catch {
+        // not authenticated — stay on login page
     }
 });
 

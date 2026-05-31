@@ -1,12 +1,12 @@
-import contextlib
 import json
 import logging
-import os
 import tempfile
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from fanzadl_webui.store.base import try_write
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +35,8 @@ def save_config(path: Path, config: AppConfig) -> None:
     data = config.model_dump_json().encode()
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=path.parent)
-    try:
-        with os.fdopen(fd, "wb") as f:
-            f.write(data)
-        os.replace(tmp_path, path)
-    except Exception:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp_path)
-        raise
+
+    try_write(data, descriptor=fd, temp_path=tmp_path, orig_path=path)
 
 
 def load_config(path: Path) -> AppConfig:
