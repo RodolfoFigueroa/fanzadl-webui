@@ -10,10 +10,9 @@ services:
     volumes:
       - downloads:/download
       - image_cache:/image_cache
-      - token_data:/data
+      - ${DATA_BIND_PATH}:/data
     restart: unless-stopped
 
 volumes:
   downloads:
   image_cache:
-  token_data:
