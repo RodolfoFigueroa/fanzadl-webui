@@ -365,3 +365,4 @@ vite.config.ts.timestamp-*
 
 # Extra
 *.ipynb
+logo/logo_proj.svg
