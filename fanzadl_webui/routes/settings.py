@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import secrets
 from typing import Annotated
 
 from apscheduler.triggers.cron import CronTrigger
@@ -12,6 +13,7 @@ from fanzadl_webui.dependencies import (
     JAVSTASH_KEY_PATH,
     LIBRARY_DB_PATH,
     get_app_state,
+    require_api_key,
 )
 from fanzadl_webui.library_db import save_library_db, update_javstash_info_db
 from fanzadl_webui.manager import warm_all_details
@@ -50,7 +52,10 @@ class AppSettingsPatch(BaseModel):
 
 
 @router.get("/settings/")
-def get_settings(app_state: Annotated[AppState, Depends(get_app_state)]) -> AppSettings:
+def get_settings(
+    app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> AppSettings:
     return AppSettings(
         max_concurrent_downloads=app_state.max_concurrent_downloads,
         log_level=app_state.log_level,
@@ -70,6 +75,7 @@ async def update_settings(
     body: AppSettingsPatch,
     request: Request,
     app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> AppSettings:
     if body.max_concurrent_downloads is not None:
         app_state.max_concurrent_downloads = body.max_concurrent_downloads
@@ -171,4 +177,35 @@ async def update_settings(
         library_refresh_cron=app_state.library_refresh_cron,
         auto_download_new_items=app_state.auto_download_new_items,
         auto_download_missing_parts=app_state.auto_download_missing_parts,
+    )
+
+
+class ApiKeyInfo(BaseModel):
+    api_key: str
+    persisted: bool
+
+
+@router.get("/settings/api-key")
+def get_api_key(
+    app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> ApiKeyInfo:
+    return ApiKeyInfo(
+        api_key=app_state.local_api_key,
+        persisted=app_state.local_api_key_persisted,
+    )
+
+
+@router.post("/settings/api-key/rotate")
+def rotate_api_key(
+    app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> ApiKeyInfo:
+    new_key = secrets.token_urlsafe(32)
+    app_state.local_api_key = new_key
+    if app_state.local_api_key_persisted:
+        app_state.save_local_api_key_fn(new_key)
+    return ApiKeyInfo(
+        api_key=new_key,
+        persisted=app_state.local_api_key_persisted,
     )

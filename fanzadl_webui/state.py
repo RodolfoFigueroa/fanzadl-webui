@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,8 +31,11 @@ class AppState:
     config_path: Path
     save_fn: Callable[[str, str], None]
     save_api_key_fn: Callable[[str], None]
+    save_local_api_key_fn: Callable[[str], None]
     javstash_api_key: str | None
     javstash_enabled: bool
+    local_api_key: str
+    local_api_key_persisted: bool
     scheduler: AsyncIOScheduler
     jobs: dict[str, DownloadJob] = field(default_factory=dict)
     queues: Queues = field(default_factory=dict)
@@ -48,3 +52,10 @@ class AppState:
     global_job_queues: list[asyncio.Queue[dict[str, int] | None]] = field(
         default_factory=list
     )
+    library_event_queues: list[asyncio.Queue[tuple[int, str] | None]] = field(
+        default_factory=list
+    )
+    library_event_buffer: deque[tuple[int, str]] = field(
+        default_factory=lambda: deque(maxlen=50)
+    )
+    library_event_counter: int = 0

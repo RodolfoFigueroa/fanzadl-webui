@@ -1,6 +1,7 @@
 import asyncio
 import uuid
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -48,3 +49,11 @@ class StreamVariant(BaseModel):
     bandwidth: int
     codecs: str | None
     uri: str | None = None
+
+
+class LibraryEvent(BaseModel):
+    type: Literal["item_added", "item_expired", "auto_queued"]
+    content_id: str
+    title: str | None = None
+    part: int | None = None
+    mylibrary_id: int | None = None

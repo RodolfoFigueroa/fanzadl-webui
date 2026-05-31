@@ -64,3 +64,16 @@ export interface AppSettingsPatch {
     auto_download_new_items?: boolean;
     auto_download_missing_parts?: boolean;
 }
+
+export interface ApiKeyInfo {
+    api_key: string;
+    persisted: boolean;
+}
+
+export interface LibraryEvent {
+    type: 'item_added' | 'item_expired' | 'auto_queued';
+    content_id: string;
+    title: string | null;
+    part: number | null;
+    mylibrary_id: number | null;
+}

@@ -1,9 +1,11 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { goto } from '$app/navigation';
 import type {
+    ApiKeyInfo,
     AppSettings,
     AppSettingsPatch,
     DownloadJob,
+    LibraryEvent,
     LibraryItem,
     StreamVariant,
 } from './types';
@@ -14,7 +16,11 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
         ...(init?.headers as Record<string, string> | undefined),
     };
 
-    const response = await fetch(path, { ...init, headers });
+    const response = await fetch(path, {
+        ...init,
+        headers,
+        credentials: 'include',
+    });
 
     if (!response.ok) {
         if (response.status === 401 && path !== '/api/auth/login') {
@@ -171,6 +177,37 @@ export async function updateSettings(
     return data;
 }
 
+export async function getApiKey(): Promise<ApiKeyInfo> {
+    return apiFetch<ApiKeyInfo>('/api/settings/api-key');
+}
+
+export async function rotateApiKey(): Promise<ApiKeyInfo> {
+    return apiFetch<ApiKeyInfo>('/api/settings/api-key/rotate', {
+        method: 'POST',
+    });
+}
+
+export function subscribeLibraryEvents(
+    onMessage: (event: LibraryEvent) => void,
+    onError?: (err: unknown) => void,
+    signal?: AbortSignal,
+): void {
+    void fetchEventSource('/api/notifications/library', {
+        signal,
+        credentials: 'include',
+        onmessage(ev) {
+            try {
+                onMessage(JSON.parse(ev.data) as LibraryEvent);
+            } catch {
+                // ignore parse errors
+            }
+        },
+        onerror(err) {
+            onError?.(err);
+        },
+    });
+}
+
 export function subscribeJobEvents(
     jobId: string,
     onMessage: (job: DownloadJob) => void,
@@ -179,6 +216,7 @@ export function subscribeJobEvents(
 ): void {
     void fetchEventSource(`/api/jobs/${jobId}/events`, {
         signal,
+        credentials: 'include',
         onmessage(event) {
             try {
                 const job = JSON.parse(event.data) as DownloadJob;
@@ -205,6 +243,7 @@ export function subscribeGlobalJobEvents(
 ): void {
     void fetchEventSource('/api/jobs/global-events', {
         signal,
+        credentials: 'include',
         onmessage(event) {
             try {
                 const counts = JSON.parse(event.data) as Record<string, number>;
@@ -231,6 +270,7 @@ export function subscribeNotifications(
 ): void {
     void fetchEventSource('/api/notifications/errors', {
         signal,
+        credentials: 'include',
         onmessage(event) {
             if (!event.data) return;
             try {

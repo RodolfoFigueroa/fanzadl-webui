@@ -5,6 +5,7 @@ from typing import Annotated
 import requests
 from fanzadl.exceptions import MalformedEmailError, WrongCredentialsError
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from fanzadl_webui.dependencies import (
@@ -12,6 +13,7 @@ from fanzadl_webui.dependencies import (
     LIBRARY_DB_PATH,
     TOKEN_STORE_PATH,
     get_app_state,
+    require_api_key,
 )
 from fanzadl_webui.library_db import delete_all, save_library_db
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
@@ -85,6 +87,15 @@ async def login(
         app_state.manager = manager
         app_state.save_fn(manager.user_id, manager.refresh_token)
 
+    response = JSONResponse(content={"status": "ok"})
+    response.set_cookie(
+        key="session",
+        value=app_state.local_api_key,
+        httponly=True,
+        samesite="strict",
+        secure=False,
+    )
+
     await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
 
     async def _warm_and_save() -> None:
@@ -103,13 +114,14 @@ async def login(
         app_state.background_tasks.add(task)
         task.add_done_callback(app_state.background_tasks.discard)
 
-    return {"status": "ok"}
+    return response
 
 
 @router.post("/logout")
 async def logout(
     app_state: Annotated[AppState, Depends(get_app_state)],
-) -> dict[str, str]:
+    _: Annotated[None, Depends(require_api_key)],
+) -> JSONResponse:
     for task in list(app_state.background_tasks):
         task.cancel()
     app_state.background_tasks.clear()
@@ -127,4 +139,6 @@ async def logout(
     delete_all(LIBRARY_DB_PATH)
     app_state.manager = None
 
-    return {"status": "ok"}
+    response = JSONResponse(content={"status": "ok"})
+    response.delete_cookie(key="session", httponly=True, samesite="strict")
+    return response

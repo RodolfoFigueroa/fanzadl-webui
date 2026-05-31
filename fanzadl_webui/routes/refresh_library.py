@@ -9,10 +9,13 @@ from fanzadl_webui.dependencies import (
     LIBRARY_DB_PATH,
     get_app_state,
     get_manager,
+    require_api_key,
 )
+from fanzadl_webui.events import publish_library_event
 from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.library_db import save_library_db
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
+from fanzadl_webui.models import LibraryEvent
 from fanzadl_webui.routes.download import (
     auto_enqueue_missing_parts,
     auto_enqueue_new_items,
@@ -29,7 +32,11 @@ _background_tasks: set[asyncio.Task] = set()
 async def refresh_library(
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
     app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> dict[str, str]:
+    old_snapshot: dict[int, str] = {
+        vid_id: item.content_id for vid_id, item in manager.library.items()
+    }
     try:
         await asyncio.to_thread(manager.update_library)
     except Exception as exc:
@@ -55,6 +62,29 @@ async def refresh_library(
                 new_ids or set(),
             )
             manager._ids_restored_from_cache = set()  # noqa: SLF001
+        current_ids = set(manager.library)
+        old_ids_set = set(old_snapshot)
+        for vid_id in current_ids - old_ids_set:
+            item = manager.library.get(vid_id)
+            if item is not None:
+                publish_library_event(
+                    app_state,
+                    LibraryEvent(
+                        type="item_added",
+                        content_id=item.content_id,
+                        title=getattr(item, "title", None),
+                        mylibrary_id=vid_id,
+                    ),
+                )
+        for vid_id in old_ids_set - current_ids:
+            publish_library_event(
+                app_state,
+                LibraryEvent(
+                    type="item_expired",
+                    content_id=old_snapshot[vid_id],
+                    mylibrary_id=vid_id,
+                ),
+            )
         auto_new_ids = (
             (new_ids or set()) if app_state.auto_download_new_items else set()
         )

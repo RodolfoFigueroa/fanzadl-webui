@@ -14,6 +14,7 @@ from fanzadl_webui.dependencies import (
     LIBRARY_DB_PATH,
     get_app_state,
     get_manager,
+    require_api_key,
 )
 from fanzadl_webui.library_db import get_unavailable_items
 from fanzadl_webui.state import AppState
@@ -66,6 +67,7 @@ async def get_image(
     content_id: str,
     app_state: Annotated[AppState, Depends(get_app_state)],
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> FileResponse:
     dest = _cache_path(IMAGE_CACHE_DIR, content_id)
 

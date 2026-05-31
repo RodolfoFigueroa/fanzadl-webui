@@ -25,4 +25,8 @@ ignore = ["D", "COM812", "PLR2004"]
 fanzadl = { git = "https://github.com/RodolfoFigueroa/FanzaDL" }
 
 [dependency-groups]
-dev = ["ipykernel<7", "pre-commit>=4.6.0"]
+dev = [
+    "httpx-sse>=0.4.3",
+    "ipykernel<7",
+    "pre-commit>=4.6.0",
+]

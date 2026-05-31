@@ -11,7 +11,12 @@ from fanzadl.models.video import (
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from fanzadl_webui.dependencies import LIBRARY_DB_PATH, get_app_state, get_manager
+from fanzadl_webui.dependencies import (
+    LIBRARY_DB_PATH,
+    get_app_state,
+    get_manager,
+    require_api_key,
+)
 from fanzadl_webui.library_db import (
     delete_unavailable_item,
     get_unavailable_items,
@@ -72,6 +77,7 @@ def _serialize(item: LibraryItem) -> LibraryItemResponse:
 def dev_expire_item(
     body: _DevExpireBody,
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> None:
     if manager.library.get(body.mylibrary_id) is None:
         raise HTTPException(
@@ -82,7 +88,7 @@ def dev_expire_item(
 
 @router.get("/expired/")
 def get_expired_library(
-    manager: Annotated[FanzaDLManager, Depends(get_manager)],  # noqa: ARG001
+    _: Annotated[None, Depends(require_api_key)],
 ) -> list[LibraryItemResponse]:
     rows = get_unavailable_items(LIBRARY_DB_PATH)
     return [
@@ -109,7 +115,7 @@ def get_expired_library(
 @router.delete("/expired/{mylibrary_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_expired_item(
     mylibrary_id: int,
-    manager: Annotated[FanzaDLManager, Depends(get_manager)],  # noqa: ARG001
+    _: Annotated[None, Depends(require_api_key)],
 ) -> None:
     if not delete_unavailable_item(LIBRARY_DB_PATH, mylibrary_id):
         raise HTTPException(
@@ -120,13 +126,12 @@ def delete_expired_item(
 @router.get("/download-counts/")
 def get_download_counts(
     app_state: Annotated[AppState, Depends(get_app_state)],
-    manager: Annotated[FanzaDLManager, Depends(get_manager)],  # noqa: ARG001
+    _: Annotated[None, Depends(require_api_key)],
 ) -> dict[str, int]:
     """Return the number of downloaded parts for each library item.
 
     Args:
         app_state: Injected application state providing download counts.
-        manager: Injected manager (used only to enforce authentication).
 
     Returns:
         A dict mapping ``content_id`` to the count of downloaded ``.mp4`` files.
@@ -137,6 +142,7 @@ def get_download_counts(
 @router.get("/")
 def get_library(
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> dict[int, LibraryItemResponse]:
     return {k: _serialize(v) for k, v in manager.library.items()}
 
@@ -145,6 +151,7 @@ def get_library(
 def get_item(
     video_id: int,
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> LibraryItemResponse:
     item = manager.library.get(video_id)
     if item is None:

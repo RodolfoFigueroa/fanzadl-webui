@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from fanzadl_webui.dependencies import DOWNLOAD_DIR, get_app_state
+from fanzadl_webui.dependencies import DOWNLOAD_DIR, get_app_state, require_api_key
 from fanzadl_webui.jobs import (
     DownloadJob,
     JobStatus,
@@ -47,7 +47,10 @@ class FilenameCheckResponse(BaseModel):
 
 
 @router.get("/download/check-filename")
-def check_filename(name: str = Query(..., min_length=1)) -> FilenameCheckResponse:
+def check_filename(
+    _: Annotated[None, Depends(require_api_key)],
+    name: str = Query(..., min_length=1),
+) -> FilenameCheckResponse:
     """Check whether an output file with the given name already exists.
 
     Args:
@@ -68,6 +71,7 @@ async def start_download(
     condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
     app_state: Annotated[AppState, Depends(get_app_state)],
     global_job_queues: Annotated[list, Depends(get_global_job_queues)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> dict[str, str]:
     """Create a download job and dispatch it as a background task.
 
@@ -132,6 +136,7 @@ async def start_download(
 @router.get("/jobs/")
 def list_jobs(
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> list[DownloadJob]:
     """Return all current download jobs.
 
@@ -148,6 +153,7 @@ def list_jobs(
 def get_job(
     job_id: str,
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> DownloadJob:
     """Return a single download job by ID.
 
@@ -183,6 +189,7 @@ async def delete_jobs(
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],
     condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> None:
     """Bulk-cancel or delete jobs matching job_filter.
 
@@ -223,6 +230,7 @@ async def cancel_or_delete_job(
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],
     condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> None:
     """Cancel an active job or delete a finished one by ID.
 
@@ -264,6 +272,7 @@ async def job_events(
     job_id: str,
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> EventSourceResponse:
     """Stream SSE events for a job until it finishes or the client disconnects.
 
@@ -317,6 +326,7 @@ async def job_events(
 @router.get("/jobs/active-counts/")
 def get_active_counts(
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> dict[str, int]:
     """Return a snapshot of pending/running job counts grouped by content_id.
 
@@ -333,6 +343,7 @@ def get_active_counts(
 async def global_job_events(
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     global_job_queues: Annotated[list, Depends(get_global_job_queues)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> EventSourceResponse:
     """Stream SSE events with active job counts grouped by content_id.
 

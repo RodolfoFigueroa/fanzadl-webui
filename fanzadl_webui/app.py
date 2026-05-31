@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import secrets
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -21,6 +22,7 @@ from fanzadl_webui.dependencies import (
     IMAGE_CACHE_DIR,
     JAVSTASH_KEY_PATH,
     LIBRARY_DB_PATH,
+    LOCAL_API_KEY_PATH,
     TOKEN_STORE_PATH,
 )
 from fanzadl_webui.filename import rescan_and_store
@@ -64,7 +66,14 @@ def _load_or_create_config(default_log_level: str) -> AppConfig:
 
 def _make_persistence_handlers(
     enc_key_str: str | None,
-) -> tuple[Callable[[str, str], None], Callable[[str], None], str | None]:
+) -> tuple[
+    Callable[[str, str], None],
+    Callable[[str], None],
+    Callable[[str], None],
+    str | None,
+    str,
+    bool,
+]:
     if enc_key_str:
         enc_key = enc_key_str.encode()
 
@@ -74,7 +83,15 @@ def _make_persistence_handlers(
         def save_api_key_fn(api_key: str) -> None:
             save_api_key(JAVSTASH_KEY_PATH, enc_key, api_key)
 
+        def save_local_api_key_fn(api_key: str) -> None:
+            save_api_key(LOCAL_API_KEY_PATH, enc_key, api_key)
+
         javstash_api_key = load_api_key(JAVSTASH_KEY_PATH, enc_key)
+        local_api_key = load_api_key(LOCAL_API_KEY_PATH, enc_key)
+        if local_api_key is None:
+            local_api_key = secrets.token_urlsafe(32)
+            save_local_api_key_fn(local_api_key)
+        local_api_key_persisted = True
     else:
 
         def save_fn(user_id: str, refresh_token: str) -> None:  # type: ignore[misc]
@@ -83,9 +100,21 @@ def _make_persistence_handlers(
         def save_api_key_fn(api_key: str) -> None:  # type: ignore[misc]
             pass
 
-        javstash_api_key = None
+        def save_local_api_key_fn(api_key: str) -> None:  # type: ignore[misc]
+            pass
 
-    return save_fn, save_api_key_fn, javstash_api_key
+        javstash_api_key = None
+        local_api_key = secrets.token_urlsafe(32)
+        local_api_key_persisted = False
+
+    return (
+        save_fn,
+        save_api_key_fn,
+        save_local_api_key_fn,
+        javstash_api_key,
+        local_api_key,
+        local_api_key_persisted,
+    )
 
 
 def _init_app_state(
@@ -94,7 +123,10 @@ def _init_app_state(
     client: httpx.AsyncClient,
     save_fn: Callable[[str, str], None],
     save_api_key_fn: Callable[[str], None],
+    save_local_api_key_fn: Callable[[str], None],
     javstash_api_key: str | None,
+    local_api_key: str,
+    local_api_key_persisted: bool,
     scheduler: AsyncIOScheduler,
 ) -> None:
     app.state.app_state = AppState(
@@ -112,8 +144,11 @@ def _init_app_state(
         config_path=CONFIG_PATH,
         save_fn=save_fn,
         save_api_key_fn=save_api_key_fn,
+        save_local_api_key_fn=save_local_api_key_fn,
         javstash_api_key=javstash_api_key,
         javstash_enabled=javstash_api_key is not None,
+        local_api_key=local_api_key,
+        local_api_key_persisted=local_api_key_persisted,
         scheduler=scheduler,
     )
 
@@ -184,12 +219,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     _setup_logging(default_log_level, config)
     enc_key_str = os.environ.get("TOKEN_ENCRYPTION_KEY")
     notification_handler: NotificationHandler | None = None
-    save_fn, save_api_key_fn, javstash_api_key = _make_persistence_handlers(enc_key_str)
+    (
+        save_fn,
+        save_api_key_fn,
+        save_local_api_key_fn,
+        javstash_api_key,
+        local_api_key,
+        local_api_key_persisted,
+    ) = _make_persistence_handlers(enc_key_str)
     scheduler = AsyncIOScheduler()
     scheduler.start()
     async with httpx.AsyncClient() as client:
         _init_app_state(
-            app, config, client, save_fn, save_api_key_fn, javstash_api_key, scheduler
+            app,
+            config,
+            client,
+            save_fn,
+            save_api_key_fn,
+            save_local_api_key_fn,
+            javstash_api_key,
+            local_api_key,
+            local_api_key_persisted,
+            scheduler,
         )
         loop = asyncio.get_running_loop()
         notification_handler = NotificationHandler(

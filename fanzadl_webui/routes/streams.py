@@ -10,7 +10,7 @@ from pydantic import (
     BaseModel,  # noqa: F401 – keep for existing StreamVariant import compatibility
 )
 
-from fanzadl_webui.dependencies import get_app_state, get_manager
+from fanzadl_webui.dependencies import get_app_state, get_manager, require_api_key
 from fanzadl_webui.jobs import get_http_client
 from fanzadl_webui.models import StreamVariant
 from fanzadl_webui.routes._utils import get_quality_obj
@@ -27,6 +27,7 @@ async def get_streams(  # noqa: PLR0913
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
     http_client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
     app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
     part: int | None = None,
     quality: Literal["highest"] = "highest",  # noqa: ARG001
 ) -> list[StreamVariant]:

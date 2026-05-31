@@ -6,8 +6,10 @@ from typing import Any
 import m3u8
 
 from fanzadl_webui.dependencies import DOWNLOAD_DIR
+from fanzadl_webui.events import publish_library_event
 from fanzadl_webui.filename import render_template
 from fanzadl_webui.jobs import DownloadJob, JobStatus
+from fanzadl_webui.models import LibraryEvent
 from fanzadl_webui.routes.download.runner import _ConcurrencyContext, _run_download
 from fanzadl_webui.state import AppState
 
@@ -116,6 +118,16 @@ async def _enqueue_part(
         part,
         bandwidth_mbps,
         extra={"notify": True},
+    )
+    publish_library_event(
+        app_state,
+        LibraryEvent(
+            type="auto_queued",
+            content_id=item.content_id,
+            title=getattr(item, "title", None),
+            part=part,
+            mylibrary_id=getattr(item, "mylibrary_id", None),
+        ),
     )
 
 
