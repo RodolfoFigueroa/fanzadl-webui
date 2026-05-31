@@ -25,6 +25,8 @@ class AppState:
     multi_part_filename_template: str
     library_refresh_enabled: bool
     library_refresh_cron: str
+    auto_download_new_items: bool
+    auto_download_missing_parts: bool
     config_path: Path
     save_fn: Callable[[str, str], None]
     save_api_key_fn: Callable[[str], None]

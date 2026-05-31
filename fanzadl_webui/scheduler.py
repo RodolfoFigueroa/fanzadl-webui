@@ -14,6 +14,10 @@ from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, LIBRARY_DB_PATH
 from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.library_db import save_library_db
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
+from fanzadl_webui.routes.download import (
+    auto_enqueue_missing_parts,
+    auto_enqueue_new_items,
+)
 from fanzadl_webui.routes.images import precache_all, purge_stale
 
 logger = logging.getLogger(__name__)
@@ -59,6 +63,11 @@ async def do_library_refresh(app: FastAPI) -> None:
                 new_ids or set(),
             )
             manager._ids_restored_from_cache = set()  # noqa: SLF001
+        auto_new_ids = (new_ids or set()) if state.auto_download_new_items else set()
+        if state.auto_download_new_items and new_ids:
+            await auto_enqueue_new_items(new_ids, state)
+        if state.auto_download_missing_parts:
+            await auto_enqueue_missing_parts(auto_new_ids, state)
 
     await asyncio.gather(
         precache_all(manager, state.http_client, IMAGE_CACHE_DIR),

@@ -46,6 +46,12 @@ let scheduleEnabled = $state(
 let refreshCron = $state(
     getCachedSettings()?.library_refresh_cron ?? '0 0 * * *',
 );
+let autoDownloadNewItems = $state(
+    getCachedSettings()?.auto_download_new_items ?? false,
+);
+let autoDownloadMissingParts = $state(
+    getCachedSettings()?.auto_download_missing_parts ?? false,
+);
 
 let javstashKeyInput = $state('');
 let javstashSaving = $state(false);
@@ -61,6 +67,8 @@ onMount(async () => {
     multiPartTemplate = s.multi_part_filename_template;
     scheduleEnabled = s.library_refresh_enabled;
     refreshCron = s.library_refresh_cron;
+    autoDownloadNewItems = s.auto_download_new_items;
+    autoDownloadMissingParts = s.auto_download_missing_parts;
 });
 
 async function handleSaveJavstashKey() {
@@ -407,6 +415,46 @@ let cronResult = $derived.by<CronResult>(() => {
             </div>
 
         {:else if activeTab === 'schedule'}
+            <div>
+                <label class="flex items-center gap-3 cursor-pointer w-fit">
+                    <input
+                        type="checkbox"
+                        bind:checked={autoDownloadNewItems}
+                        onchange={() =>
+                            updateSettings({ auto_download_new_items: autoDownloadNewItems })}
+                        class="w-4 h-4 rounded border border-th-border-input bg-th-input
+                            accent-th-border-strong cursor-pointer"
+                    />
+                    <span class="text-sm font-medium text-th-text-muted">
+                        Auto-download new items
+                    </span>
+                </label>
+                <p class="text-xs text-th-text-dim mt-1.5 mb-4">
+                    When enabled, items that appear in the library after a refresh (manual or
+                    scheduled) are automatically added to the download queue at the highest
+                    available quality.
+                </p>
+            </div>
+            <div>
+                <label class="flex items-center gap-3 cursor-pointer w-fit">
+                    <input
+                        type="checkbox"
+                        bind:checked={autoDownloadMissingParts}
+                        onchange={() =>
+                            updateSettings({ auto_download_missing_parts: autoDownloadMissingParts })}
+                        class="w-4 h-4 rounded border border-th-border-input bg-th-input
+                            accent-th-border-strong cursor-pointer"
+                    />
+                    <span class="text-sm font-medium text-th-text-muted">
+                        Auto-download missing parts
+                    </span>
+                </label>
+                <p class="text-xs text-th-text-dim mt-1.5 mb-4">
+                    When enabled, any parts missing from the download directory are
+                    automatically queued after each library refresh, for both new and
+                    existing items.
+                </p>
+            </div>
             <div>
                 <label class="flex items-center gap-3 cursor-pointer w-fit">
                     <input

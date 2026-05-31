@@ -21,6 +21,8 @@ class AppConfig(BaseModel):
     multi_part_filename_template: str = "{content_id}/{content_id}_{part:02}"
     library_refresh_enabled: bool = False
     library_refresh_cron: str = "0 0 * * *"
+    auto_download_new_items: bool = False
+    auto_download_missing_parts: bool = False
 
 
 def save_config(path: Path, config: AppConfig) -> None:

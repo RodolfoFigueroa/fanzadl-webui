@@ -45,6 +45,8 @@ export interface AppSettings {
     multi_part_filename_template: string;
     library_refresh_enabled: boolean;
     library_refresh_cron: string;
+    auto_download_new_items: boolean;
+    auto_download_missing_parts: boolean;
 }
 
 export interface AppSettingsPatch {
@@ -56,4 +58,6 @@ export interface AppSettingsPatch {
     multi_part_filename_template?: string;
     library_refresh_enabled?: boolean;
     library_refresh_cron?: string;
+    auto_download_new_items?: boolean;
+    auto_download_missing_parts?: boolean;
 }

@@ -105,6 +105,8 @@ def _init_app_state(
         multi_part_filename_template=config.multi_part_filename_template,
         library_refresh_enabled=config.library_refresh_enabled,
         library_refresh_cron=config.library_refresh_cron,
+        auto_download_new_items=config.auto_download_new_items,
+        auto_download_missing_parts=config.auto_download_missing_parts,
         config_path=CONFIG_PATH,
         save_fn=save_fn,
         save_api_key_fn=save_api_key_fn,

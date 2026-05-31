@@ -13,6 +13,10 @@ from fanzadl_webui.dependencies import (
 from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.library_db import save_library_db
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
+from fanzadl_webui.routes.download import (
+    auto_enqueue_missing_parts,
+    auto_enqueue_new_items,
+)
 from fanzadl_webui.routes.images import precache_all, purge_stale
 from fanzadl_webui.state import AppState
 
@@ -51,6 +55,13 @@ async def refresh_library(
                 new_ids or set(),
             )
             manager._ids_restored_from_cache = set()  # noqa: SLF001
+        auto_new_ids = (
+            (new_ids or set()) if app_state.auto_download_new_items else set()
+        )
+        if app_state.auto_download_new_items and new_ids:
+            await auto_enqueue_new_items(new_ids, app_state)
+        if app_state.auto_download_missing_parts:
+            await auto_enqueue_missing_parts(auto_new_ids, app_state)
 
     for coro in (
         precache_all(manager, app_state.http_client, IMAGE_CACHE_DIR),

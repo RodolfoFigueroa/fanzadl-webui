@@ -32,6 +32,8 @@ class AppSettings(BaseModel):
     multi_part_filename_template: str
     library_refresh_enabled: bool
     library_refresh_cron: str
+    auto_download_new_items: bool
+    auto_download_missing_parts: bool
 
 
 class AppSettingsPatch(BaseModel):
@@ -43,6 +45,8 @@ class AppSettingsPatch(BaseModel):
     multi_part_filename_template: str | None = None
     library_refresh_enabled: bool | None = None
     library_refresh_cron: str | None = None
+    auto_download_new_items: bool | None = None
+    auto_download_missing_parts: bool | None = None
 
 
 @router.get("/settings/")
@@ -56,6 +60,8 @@ def get_settings(app_state: Annotated[AppState, Depends(get_app_state)]) -> AppS
         multi_part_filename_template=app_state.multi_part_filename_template,
         library_refresh_enabled=app_state.library_refresh_enabled,
         library_refresh_cron=app_state.library_refresh_cron,
+        auto_download_new_items=app_state.auto_download_new_items,
+        auto_download_missing_parts=app_state.auto_download_missing_parts,
     )
 
 
@@ -129,6 +135,10 @@ async def update_settings(
         app_state.library_refresh_cron = body.library_refresh_cron
     if body.library_refresh_enabled is not None:
         app_state.library_refresh_enabled = body.library_refresh_enabled
+    if body.auto_download_new_items is not None:
+        app_state.auto_download_new_items = body.auto_download_new_items
+    if body.auto_download_missing_parts is not None:
+        app_state.auto_download_missing_parts = body.auto_download_missing_parts
     _refresh_enabled = app_state.library_refresh_enabled
     _refresh_cron = app_state.library_refresh_cron
     if _refresh_enabled:
@@ -146,6 +156,8 @@ async def update_settings(
             multi_part_filename_template=app_state.multi_part_filename_template,
             library_refresh_enabled=app_state.library_refresh_enabled,
             library_refresh_cron=app_state.library_refresh_cron,
+            auto_download_new_items=app_state.auto_download_new_items,
+            auto_download_missing_parts=app_state.auto_download_missing_parts,
         ),
     )
     return AppSettings(
@@ -157,4 +169,6 @@ async def update_settings(
         multi_part_filename_template=app_state.multi_part_filename_template,
         library_refresh_enabled=app_state.library_refresh_enabled,
         library_refresh_cron=app_state.library_refresh_cron,
+        auto_download_new_items=app_state.auto_download_new_items,
+        auto_download_missing_parts=app_state.auto_download_missing_parts,
     )
