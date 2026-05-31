@@ -4,7 +4,6 @@ import type {
     AppSettings,
     AppSettingsPatch,
     DownloadJob,
-    ExpiredLibraryItem,
     LibraryItem,
     StreamVariant,
 } from './types';
@@ -75,11 +74,9 @@ export async function refreshLibrary(): Promise<void> {
 }
 
 export async function getExpiredLibrary(): Promise<
-    Record<string, ExpiredLibraryItem>
+    Record<string, LibraryItem>
 > {
-    return apiFetch<Record<string, ExpiredLibraryItem>>(
-        '/api/library/expired/',
-    );
+    return apiFetch<Record<string, LibraryItem>>('/api/library/expired/');
 }
 
 export async function getDownloadCounts(): Promise<Record<string, number>> {

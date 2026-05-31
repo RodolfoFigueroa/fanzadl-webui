@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import date, datetime
 from typing import Annotated, Literal
@@ -22,20 +23,6 @@ LibraryItem = VideoLibraryItemContentsModel | VRLibraryItemContentsModel
 
 
 class LibraryItemResponse(BaseModel):
-    mylibrary_id: int
-    content_id: str
-    title: str
-    content_type: Literal["video", "vr"]
-    package_image_url: str
-    parts: int
-    purchase_date: datetime
-    expire: date
-    trans_type: Literal["download", "stream"]
-    javstash_id: str | None = None
-    javstash_studio_code: str | None = None
-
-
-class ExpiredLibraryItemResponse(BaseModel):
     mylibrary_id: int
     content_id: str
     title: str
@@ -96,10 +83,10 @@ def dev_expire_item(
 @router.get("/expired/")
 def get_expired_library(
     manager: Annotated[FanzaDLManager, Depends(get_manager)],  # noqa: ARG001
-) -> list[ExpiredLibraryItemResponse]:
+) -> list[LibraryItemResponse]:
     rows = get_unavailable_items(LIBRARY_DB_PATH)
     return [
-        ExpiredLibraryItemResponse(
+        LibraryItemResponse(
             mylibrary_id=row["mylibrary_id"],
             content_id=row["content_id"],
             title=row["title"],
@@ -109,6 +96,11 @@ def get_expired_library(
             purchase_date=row["purchase_date"],
             expire=row["expire"],
             trans_type=row["trans_type"],
+            **(
+                json.loads(row["javstash_info_json"])
+                if row.get("javstash_info_json")
+                else {}
+            ),
         )
         for row in rows
     ]

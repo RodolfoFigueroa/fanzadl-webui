@@ -9,7 +9,13 @@ from fanzadl import FanzaDLManager
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 
-from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, get_app_state, get_manager
+from fanzadl_webui.dependencies import (
+    IMAGE_CACHE_DIR,
+    LIBRARY_DB_PATH,
+    get_app_state,
+    get_manager,
+)
+from fanzadl_webui.library_db import get_unavailable_items
 from fanzadl_webui.state import AppState
 
 logger = logging.getLogger(__name__)
@@ -36,7 +42,7 @@ async def precache_all(
     http_client: httpx.AsyncClient,
     cache_dir: Path,
 ) -> None:
-    all_items = list(manager.library.values()) + list(manager.expired_library.values())
+    all_items = list(manager.library.values())
     for item in all_items:
         dest = _cache_path(cache_dir, item.content_id)
         if dest.exists():
@@ -48,7 +54,7 @@ async def precache_all(
 
 def purge_stale(manager: FanzaDLManager, cache_dir: Path) -> None:
     known = {item.content_id for item in manager.library.values()} | {
-        item.content_id for item in manager.expired_library.values()
+        row["content_id"] for row in get_unavailable_items(LIBRARY_DB_PATH)
     }
     for cached in cache_dir.glob("*.jpg"):
         if cached.stem not in known:
@@ -64,10 +70,9 @@ async def get_image(
     dest = _cache_path(IMAGE_CACHE_DIR, content_id)
 
     if not dest.exists():
-        all_items = list(manager.library.values()) + list(
-            manager.expired_library.values()
+        item = next(
+            (i for i in manager.library.values() if i.content_id == content_id), None
         )
-        item = next((i for i in all_items if i.content_id == content_id), None)
         if item is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

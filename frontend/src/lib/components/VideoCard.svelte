@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { ExpiredLibraryItem, LibraryItem } from '$lib/types';
+import type { LibraryItem } from '$lib/types';
 
 let {
     item,
@@ -7,15 +7,15 @@ let {
     onDelete,
     javstashEnabled = false,
     downloadedCount = 0,
+    expired = false,
 }: {
-    item: LibraryItem | ExpiredLibraryItem;
+    item: LibraryItem;
     onDownload?: (item: LibraryItem) => void;
-    onDelete?: (item: ExpiredLibraryItem) => void;
+    onDelete?: (item: LibraryItem) => void;
     javstashEnabled?: boolean;
     downloadedCount?: number;
+    expired?: boolean;
 } = $props();
-
-const expired = $derived('parts' in item === false);
 
 let imgError = $state(false);
 
@@ -149,7 +149,7 @@ const days = $derived(daysLeft(item.expire));
 			</button>
 		{:else}
 			<button
-				onclick={() => onDelete?.(item as ExpiredLibraryItem)}
+				onclick={() => onDelete?.(item)}
 				title="Remove from tracking"
 				class="mt-0.5 w-full flex items-center justify-center gap-1.5 bg-th-input
 					hover:bg-th-input-nested text-th-text-dim hover:text-red-400 text-sm

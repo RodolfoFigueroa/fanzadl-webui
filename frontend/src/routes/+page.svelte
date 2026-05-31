@@ -12,11 +12,11 @@ import {
 } from '$lib/api';
 import DownloadModal from '$lib/components/DownloadModal.svelte';
 import VideoCard from '$lib/components/VideoCard.svelte';
-import type { ExpiredLibraryItem, LibraryItem } from '$lib/types';
+import type { LibraryItem } from '$lib/types';
 
 const _cached = getCachedLibrary();
 let library = $state<LibraryItem[]>(_cached ? Object.values(_cached) : []);
-let expiredLibrary = $state<ExpiredLibraryItem[]>([]);
+let expiredLibrary = $state<LibraryItem[]>([]);
 let loading = $state(_cached === null);
 let error = $state('');
 let refreshing = $state(false);
@@ -259,6 +259,7 @@ onMount(async () => {
 		{#each sortedExpiredLibrary as item (item.mylibrary_id)}
 			<VideoCard
 				{item}
+				expired={true}
 				{javstashEnabled}
 				onDelete={async (i) => {
 					try {

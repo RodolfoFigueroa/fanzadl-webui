@@ -214,7 +214,7 @@ def get_unavailable_items(path: Path) -> list[dict]:
         rows = conn.execute(
             """
             SELECT mylibrary_id, content_id, title, content_type,
-                   purchase_date, expire, trans_type, parts
+                   purchase_date, expire, trans_type, parts, javstash_info_json
             FROM library
             WHERE available = 0
             """
