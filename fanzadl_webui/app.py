@@ -25,12 +25,14 @@ from fanzadl_webui.dependencies import (
 )
 from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.library_db import save_library_db
+from fanzadl_webui.log_handler import NotificationHandler
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes import (
     auth,
     download,
     images,
     library,
+    notifications,
     refresh_library,
     settings,
     streams,
@@ -181,6 +183,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     config = _load_or_create_config(default_log_level)
     _setup_logging(default_log_level, config)
     enc_key_str = os.environ.get("TOKEN_ENCRYPTION_KEY")
+    notification_handler: NotificationHandler | None = None
     save_fn, save_api_key_fn, javstash_api_key = _make_persistence_handlers(enc_key_str)
     scheduler = AsyncIOScheduler()
     scheduler.start()
@@ -188,6 +191,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         _init_app_state(
             app, config, client, save_fn, save_api_key_fn, javstash_api_key, scheduler
         )
+        loop = asyncio.get_running_loop()
+        notification_handler = NotificationHandler(
+            app.state.app_state.notification_queues, loop
+        )
+        logging.getLogger().addHandler(notification_handler)
         if enc_key_str:
             await _try_restore_session(
                 app, enc_key_str.encode(), save_fn, javstash_api_key, client
@@ -197,6 +205,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         try:
             yield
         finally:
+            if notification_handler is not None:
+                logging.getLogger().removeHandler(notification_handler)
             scheduler.shutdown(wait=False)
 
 
@@ -210,6 +220,7 @@ app.include_router(streams.router, prefix="/api")
 app.include_router(download.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(images.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
 
 _dist = Path(__file__).parent.parent / "frontend" / "dist"
 if _dist.is_dir():

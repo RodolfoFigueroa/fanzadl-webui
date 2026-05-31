@@ -44,3 +44,4 @@ class AppState:
         default_factory=dict
     )
     download_counts: dict[str, int] = field(default_factory=dict)
+    notification_queues: list[asyncio.Queue[str | None]] = field(default_factory=list)

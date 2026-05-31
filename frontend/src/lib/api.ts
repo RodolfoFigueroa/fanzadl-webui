@@ -192,3 +192,32 @@ export function subscribeJobEvents(
         },
     });
 }
+
+export interface ToastNotification {
+    message: string;
+    level: string;
+}
+
+export function subscribeNotifications(
+    onMessage: (notification: ToastNotification) => void,
+    signal?: AbortSignal,
+): void {
+    void fetchEventSource('/api/notifications/errors', {
+        signal,
+        onmessage(event) {
+            if (!event.data) return;
+            try {
+                const notification = JSON.parse(
+                    event.data,
+                ) as ToastNotification;
+                onMessage(notification);
+            } catch {
+                // ignore malformed events
+            }
+        },
+        onerror(err) {
+            if (signal?.aborted) return; // intentional abort — don't retry
+            throw err; // stop retrying on unexpected errors
+        },
+    });
+}

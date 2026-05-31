@@ -56,10 +56,12 @@ async def _enqueue_part(
             part,
         )
         return
-    stream_index = max(
+
+    stream_index, selected_playlist = max(
         enumerate(parsed.playlists),
         key=lambda x: x[1].stream_info.bandwidth,
-    )[0]
+    )
+    bandwidth_mbps = selected_playlist.stream_info.bandwidth // 1_000_000
 
     output_name_path = Path(output_name)
     resolved = (DOWNLOAD_DIR / output_name).resolve()
@@ -97,11 +99,11 @@ async def _enqueue_part(
     app_state.background_tasks.add(task)
     task.add_done_callback(app_state.background_tasks.discard)
     logger.info(
-        "auto-download: enqueued job %s for video %s part %s (stream %s)",
-        job.job_id,
-        video_id,
+        "auto-download: enqueued job for video %s (Part %s) (%s mbps)",
+        item.content_id,
         part,
-        stream_index,
+        bandwidth_mbps,
+        extra={"notify": True},
     )
 
 

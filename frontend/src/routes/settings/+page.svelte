@@ -451,8 +451,7 @@ let cronResult = $derived.by<CronResult>(() => {
                 </label>
                 <p class="text-xs text-th-text-dim mt-1.5 mb-4">
                     When enabled, any parts missing from the download directory are
-                    automatically queued after each library refresh, for both new and
-                    existing items.
+                    automatically queued after each library refresh, at the highest available quality.
                 </p>
             </div>
             <div>

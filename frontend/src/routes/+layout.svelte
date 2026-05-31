@@ -1,13 +1,33 @@
 <script lang="ts">
+import { onMount } from 'svelte';
+import { fly } from 'svelte/transition';
 import { afterNavigate, goto } from '$app/navigation';
 import { page } from '$app/state';
-import { getAuthStatus, logout } from '$lib/api';
+import type { ToastNotification } from '$lib/api';
+import { getAuthStatus, logout, subscribeNotifications } from '$lib/api';
+import Toast from '$lib/components/Toast.svelte';
 import type { ColorTheme } from '$lib/theme';
 import { getTheme, initTheme, setTheme } from '$lib/theme';
 import '../app.css';
 
 let { children } = $props();
 let theme = $state<ColorTheme>('system');
+
+type Notification = { id: number } & ToastNotification;
+let notifications = $state<Notification[]>([]);
+let nextId = 0;
+
+function dismiss(id: number) {
+    notifications = notifications.filter((n) => n.id !== id);
+}
+
+onMount(() => {
+    const controller = new AbortController();
+    subscribeNotifications((n) => {
+        notifications = [...notifications, { id: nextId++, ...n }].slice(-5);
+    }, controller.signal);
+    return () => controller.abort();
+});
 
 $effect(() => {
     theme = getTheme();
@@ -248,4 +268,13 @@ const navLinks = [
 			</div>
 		</nav>
 	{/if}
+
+	<!-- Error notification toasts -->
+	<div class="fixed bottom-4 right-4 flex flex-col gap-2 z-50 pointer-events-none">
+		{#each notifications as n (n.id)}
+			<div class="pointer-events-auto" transition:fly={{ x: 24, duration: 200 }}>
+				<Toast message={n.message} level={n.level} onDismiss={() => dismiss(n.id)} />
+			</div>
+		{/each}
+	</div>
 </div>
