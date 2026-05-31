@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 DOWNLOAD_DIR = Path("/download")
 IMAGE_CACHE_DIR = Path("/data/image_cache")
 TOKEN_STORE_PATH = Path("/data/tokens.enc")
+SESSION_STORE_PATH = Path("/data/sessions.enc")
 LIBRARY_DB_PATH = Path("/data/library.db")
 JAVSTASH_KEY_PATH = Path("/data/javstash_api_key.enc")
 LOCAL_API_KEY_PATH = Path("/data/local_api_key.enc")

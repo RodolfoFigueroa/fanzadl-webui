@@ -61,10 +61,16 @@ async def login(
 
     async with app_state.login_lock:
         if app_state.manager is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Already logged in",
-            )
+            session_cookie = request.cookies.get("session")
+            expiry = app_state.sessions.get(session_cookie) if session_cookie else None
+            if expiry is not None and datetime.now(UTC) < expiry:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Already logged in",
+                )
+            # Manager was restored from disk but session was lost (e.g. restart).
+            # Clear the manager so a fresh authentication can proceed.
+            app_state.manager = None
 
         try:
             manager = await asyncio.to_thread(
@@ -110,6 +116,7 @@ async def login(
     app_state.sessions[session_token] = datetime.now(UTC) + timedelta(
         hours=_SESSION_TTL_HOURS
     )
+    app_state.save_sessions_fn(app_state.sessions)
 
     response = JSONResponse(content={"status": "ok"})
     response.set_cookie(
@@ -151,6 +158,7 @@ async def logout(
     session_token = request.cookies.get("session")
     if session_token:
         app_state.sessions.pop(session_token, None)
+        app_state.save_sessions_fn(app_state.sessions)
 
     for task in list(app_state.background_tasks):
         task.cancel()

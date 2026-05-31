@@ -2,20 +2,18 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-    from datetime import datetime
-    from pathlib import Path
+import httpx
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-    import httpx
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
-    from fanzadl_webui.manager import PersistingFanzaDLManager
-    from fanzadl_webui.models import DownloadJob, Queues, StreamVariant
-    from fanzadl_webui.store.config import LogLevel
+from fanzadl_webui.manager import PersistingFanzaDLManager
+from fanzadl_webui.models import DownloadJob, Queues, StreamVariant
+from fanzadl_webui.store.config import LogLevel
 
 
 @dataclass(kw_only=True)
@@ -35,6 +33,7 @@ class AppState:
     save_fn: Callable[[str, str], None]
     save_api_key_fn: Callable[[str], None]
     save_local_api_key_fn: Callable[[str], None]
+    save_sessions_fn: Callable[[dict[str, datetime]], None]
     javstash_api_key: str | None
     javstash_enabled: bool
     local_api_key: str

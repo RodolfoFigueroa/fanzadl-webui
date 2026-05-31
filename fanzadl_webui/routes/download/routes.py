@@ -155,6 +155,60 @@ def list_jobs(
     return list(jobs.values())
 
 
+@router.get("/jobs/active-counts/")
+def get_active_counts(
+    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> dict[str, int]:
+    """Return a snapshot of pending/running job counts grouped by content_id.
+
+    Args:
+        jobs: Injected mapping of active download jobs keyed by job ID.
+
+    Returns:
+        A dict mapping content_id to the number of active jobs for that item.
+    """
+    return _compute_active_counts(jobs)
+
+
+@router.get("/jobs/global-events")
+async def global_job_events(
+    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+    global_job_queues: Annotated[list, Depends(get_global_job_queues)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> EventSourceResponse:
+    """Stream SSE events with active job counts grouped by content_id.
+
+    Sends an initial snapshot immediately, then broadcasts updated counts
+    whenever any job transitions to or from an active state. Cleans up the
+    subscriber queue when the client disconnects.
+
+    Args:
+        jobs: Injected mapping of active download jobs keyed by job ID.
+        global_job_queues: Injected list of subscriber queues for global events.
+
+    Returns:
+        An EventSourceResponse that streams serialized count dicts as JSON.
+    """
+
+    async def event_generator() -> AsyncGenerator[dict[str, str]]:
+        """Yield active-count snapshots until the client disconnects."""
+        q: asyncio.Queue[dict[str, int] | None] = asyncio.Queue()
+        global_job_queues.append(q)
+        try:
+            yield {"data": json.dumps(_compute_active_counts(jobs))}
+            while True:
+                counts = await q.get()
+                if counts is None:
+                    break
+                yield {"data": json.dumps(counts)}
+        finally:
+            if q in global_job_queues:
+                global_job_queues.remove(q)
+
+    return EventSourceResponse(event_generator())
+
+
 @router.get("/jobs/{job_id}")
 def get_job(
     job_id: str,
@@ -325,59 +379,5 @@ async def job_events(
                 job_queues.remove(q)
             if not job_queues:
                 queues.pop(job_id, None)
-
-    return EventSourceResponse(event_generator())
-
-
-@router.get("/jobs/active-counts/")
-def get_active_counts(
-    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
-    _: Annotated[None, Depends(require_api_key)],
-) -> dict[str, int]:
-    """Return a snapshot of pending/running job counts grouped by content_id.
-
-    Args:
-        jobs: Injected mapping of active download jobs keyed by job ID.
-
-    Returns:
-        A dict mapping content_id to the number of active jobs for that item.
-    """
-    return _compute_active_counts(jobs)
-
-
-@router.get("/jobs/global-events")
-async def global_job_events(
-    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
-    global_job_queues: Annotated[list, Depends(get_global_job_queues)],
-    _: Annotated[None, Depends(require_api_key)],
-) -> EventSourceResponse:
-    """Stream SSE events with active job counts grouped by content_id.
-
-    Sends an initial snapshot immediately, then broadcasts updated counts
-    whenever any job transitions to or from an active state. Cleans up the
-    subscriber queue when the client disconnects.
-
-    Args:
-        jobs: Injected mapping of active download jobs keyed by job ID.
-        global_job_queues: Injected list of subscriber queues for global events.
-
-    Returns:
-        An EventSourceResponse that streams serialized count dicts as JSON.
-    """
-
-    async def event_generator() -> AsyncGenerator[dict[str, str]]:
-        """Yield active-count snapshots until the client disconnects."""
-        q: asyncio.Queue[dict[str, int] | None] = asyncio.Queue()
-        global_job_queues.append(q)
-        try:
-            yield {"data": json.dumps(_compute_active_counts(jobs))}
-            while True:
-                counts = await q.get()
-                if counts is None:
-                    break
-                yield {"data": json.dumps(counts)}
-        finally:
-            if q in global_job_queues:
-                global_job_queues.remove(q)
 
     return EventSourceResponse(event_generator())

@@ -223,8 +223,9 @@ export function subscribeJobEvents(
         },
         onerror(err) {
             if (signal?.aborted) return; // intentional abort — don't retry
+            if (err instanceof TypeError) return; // network/navigation cancel — allow retry
             onError?.(err);
-            throw err; // stop retrying on unexpected errors
+            throw err; // unexpected server error — stop retrying
         },
     });
 }
@@ -250,7 +251,8 @@ export function subscribeGlobalJobEvents(
         },
         onerror(err) {
             if (signal?.aborted) return; // intentional abort — don't retry
-            throw err; // stop retrying on unexpected errors
+            if (err instanceof TypeError) return; // network/navigation cancel — allow retry
+            throw err; // unexpected server error — stop retrying
         },
     });
 }
@@ -280,7 +282,8 @@ export function subscribeNotifications(
         },
         onerror(err) {
             if (signal?.aborted) return; // intentional abort — don't retry
-            throw err; // stop retrying on unexpected errors
+            if (err instanceof TypeError) return; // network/navigation cancel — allow retry
+            throw err; // unexpected server error — stop retrying
         },
     });
 }
