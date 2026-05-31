@@ -7,7 +7,7 @@ import m3u8
 
 from fanzadl_webui.dependencies import DOWNLOAD_DIR
 from fanzadl_webui.filename import render_template
-from fanzadl_webui.jobs import DownloadJob
+from fanzadl_webui.jobs import DownloadJob, JobStatus
 from fanzadl_webui.routes.download.runner import _ConcurrencyContext, _run_download
 from fanzadl_webui.state import AppState
 
@@ -45,6 +45,18 @@ async def _enqueue_part(
 
     Raises any exception so the caller can log-and-skip as appropriate.
     """
+    active = {JobStatus.pending, JobStatus.running}
+    if any(
+        j.output_name == output_name and j.status in active
+        for j in app_state.jobs.values()
+    ):
+        logger.debug(
+            "auto-download: job already active for video %s part %s; skipping",
+            video_id,
+            part,
+        )
+        return
+
     playlist_url = item.highest.get_url(part)
     response = await app_state.http_client.get(playlist_url, follow_redirects=True)
     response.raise_for_status()
