@@ -296,7 +296,7 @@ async def job_events(
         try:
             # Check after appending to avoid a race between job completion
             # and queue registration.
-            if job.status in (JobStatus.done, JobStatus.error):
+            if job.status in (JobStatus.done, JobStatus.error, JobStatus.cancelled):
                 yield {"data": job.model_dump_json()}
                 return
             while True:

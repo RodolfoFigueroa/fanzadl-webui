@@ -24,6 +24,8 @@ class DownloadJob(BaseModel):
     segments_total: int | None = None
     bytes_downloaded: str | None = None
     bytes_total: str | None = None
+    bytes_downloaded_raw: int | None = None
+    bytes_total_raw: int | None = None
     file_size: int | None = None
     output_path: str | None = None
     error: str | None = None

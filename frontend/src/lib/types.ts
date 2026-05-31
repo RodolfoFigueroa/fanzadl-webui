@@ -4,12 +4,15 @@ export interface DownloadJob {
     job_id: string;
     status: JobStatus;
     output_name: string;
+    content_id: string | null;
     speed: string | null;
     percent_done: number | null;
     segments_done: number | null;
     segments_total: number | null;
     bytes_downloaded: string | null;
     bytes_total: string | null;
+    bytes_downloaded_raw: number | null;
+    bytes_total_raw: number | null;
     file_size: number | null;
     output_path: string | null;
     error: string | null;

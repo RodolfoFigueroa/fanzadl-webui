@@ -21,6 +21,34 @@ _PCT_RE = re.compile(r"(\d+)/(\d+)\s+([\d.]+)%")
 _SPEED_RE = re.compile(r"[\d.]+\s*[KMGT]?Bps")
 _SIZE_RE = re.compile(r"([\d.]+[KMGT]?B)/([\d.]+[KMGT]?B)")
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mK]")
+_RAW_SIZE_RE = re.compile(r"^([\d.]+)([KMGT]?)B$")
+
+_SIZE_MULTIPLIERS: dict[str, int] = {
+    "": 1,
+    "K": 1024,
+    "M": 1024**2,
+    "G": 1024**3,
+    "T": 1024**4,
+}
+
+
+def _parse_size_str(s: str) -> int | None:
+    """Parse a formatted byte string into a raw integer byte count.
+
+    Args:
+        s: A size string such as ``"500.0MB"`` or ``"1.2GB"``.
+
+    Returns:
+        The size in bytes as an integer, or ``None`` if the string cannot be
+        parsed.
+    """
+    m = _RAW_SIZE_RE.match(s)
+    if not m:
+        return None
+    multiplier = _SIZE_MULTIPLIERS.get(m.group(2))
+    if multiplier is None:
+        return None
+    return int(float(m.group(1)) * multiplier)
 
 
 @dataclass
@@ -249,6 +277,8 @@ def _parse_progress_line(line: str, job: DownloadJob) -> bool:
     if size_m:
         job.bytes_downloaded = size_m.group(1)
         job.bytes_total = size_m.group(2)
+        job.bytes_downloaded_raw = _parse_size_str(size_m.group(1))
+        job.bytes_total_raw = _parse_size_str(size_m.group(2))
     return True
 
 
