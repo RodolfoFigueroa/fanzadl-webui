@@ -4,9 +4,9 @@ from typing import Annotated
 from fanzadl import FanzaDLManager
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, LIBRARY_CACHE_PATH, get_manager
+from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, LIBRARY_DB_PATH, get_manager
 from fanzadl_webui.filename import rescan_and_store
-from fanzadl_webui.library_cache import save_library_cache
+from fanzadl_webui.library_db import save_library_db
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes.images import precache_all, purge_stale
 
@@ -38,7 +38,11 @@ async def refresh_library(
         await warm_all_details(manager, item_ids=new_ids)
         if isinstance(manager, PersistingFanzaDLManager):
             await asyncio.to_thread(
-                save_library_cache, LIBRARY_CACHE_PATH, manager.user_id, manager
+                save_library_db,
+                LIBRARY_DB_PATH,
+                manager.user_id,
+                manager,
+                new_ids or set(),
             )
             manager._ids_restored_from_cache = set()  # noqa: SLF001
 

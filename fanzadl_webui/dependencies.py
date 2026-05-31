@@ -6,7 +6,7 @@ from fastapi import HTTPException, Request, status
 DOWNLOAD_DIR = Path("/download")
 IMAGE_CACHE_DIR = Path("/image_cache")
 TOKEN_STORE_PATH = Path("/data/tokens.enc")
-LIBRARY_CACHE_PATH = Path("/data/library_cache.json")
+LIBRARY_DB_PATH = Path("/data/library.db")
 JAVSTASH_KEY_PATH = Path("/data/javstash_api_key.enc")
 CONFIG_PATH = Path("/data/config.json")
 

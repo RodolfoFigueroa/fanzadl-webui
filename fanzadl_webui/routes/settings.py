@@ -10,9 +10,9 @@ from fanzadl_webui.api_key_store import delete_api_key
 from fanzadl_webui.config_store import AppConfig, save_config
 from fanzadl_webui.dependencies import (
     JAVSTASH_KEY_PATH,
-    LIBRARY_CACHE_PATH,
+    LIBRARY_DB_PATH,
 )
-from fanzadl_webui.library_cache import save_library_cache
+from fanzadl_webui.library_db import save_library_db
 from fanzadl_webui.manager import warm_all_details
 from fanzadl_webui.scheduler import schedule_library_refresh, unschedule_library_refresh
 
@@ -97,11 +97,13 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
 
                 async def _warm_and_save() -> None:
                     await warm_all_details(manager)
+                    _new_ids = set(manager.library) - manager._ids_restored_from_cache  # noqa: SLF001
                     await asyncio.to_thread(
-                        save_library_cache,
-                        LIBRARY_CACHE_PATH,
+                        save_library_db,
+                        LIBRARY_DB_PATH,
                         manager.user_id,
                         manager,
+                        _new_ids,
                     )
 
                 _task = asyncio.create_task(_warm_and_save())

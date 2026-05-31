@@ -35,6 +35,7 @@ export interface ExpiredLibraryItem {
     title: string;
     content_type: 'video' | 'vr';
     package_image_url: string;
+    parts: number;
     purchase_date: string;
     expire: string;
     trans_type: 'download' | 'stream';

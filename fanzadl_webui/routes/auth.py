@@ -8,10 +8,10 @@ from pydantic import BaseModel
 
 from fanzadl_webui.dependencies import (
     IMAGE_CACHE_DIR,
-    LIBRARY_CACHE_PATH,
+    LIBRARY_DB_PATH,
     TOKEN_STORE_PATH,
 )
-from fanzadl_webui.library_cache import delete_library_cache, save_library_cache
+from fanzadl_webui.library_db import delete_all, save_library_db
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes import images
 from fanzadl_webui.routes.download import cancel_active_jobs
@@ -48,7 +48,7 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
                 password=body.password,
                 javstash_api_key=request.app.state.javstash_api_key,
                 save_fn=request.app.state.save_fn,
-                library_cache_path=LIBRARY_CACHE_PATH,
+                library_db_path=LIBRARY_DB_PATH,
                 auto_populate_library=False,
             )
             await asyncio.to_thread(manager.update_library)
@@ -81,8 +81,9 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
 
     async def _warm_and_save() -> None:
         await warm_all_details(manager)
+        _new_ids = set(manager.library) - manager._ids_restored_from_cache  # noqa: SLF001
         await asyncio.to_thread(
-            save_library_cache, LIBRARY_CACHE_PATH, manager.user_id, manager
+            save_library_db, LIBRARY_DB_PATH, manager.user_id, manager, _new_ids
         )
         manager._ids_restored_from_cache = set()  # noqa: SLF001
 
@@ -113,7 +114,7 @@ async def logout(request: Request) -> dict[str, str]:
     queues.clear()
 
     delete_tokens(TOKEN_STORE_PATH)
-    delete_library_cache(LIBRARY_CACHE_PATH)
+    delete_all(LIBRARY_DB_PATH)
     request.app.state.manager = None
 
     return {"status": "ok"}

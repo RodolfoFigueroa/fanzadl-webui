@@ -4,18 +4,18 @@ from typing import Annotated, Literal
 
 from fanzadl import FanzaDLManager
 from fanzadl.models.video import (
-    UnavailableLibraryItemContentsModel,
     VideoLibraryItemContentsModel,
     VRLibraryItemContentsModel,
-)
-from fanzadl.models.video.unavailable import (
-    UnavailableVideoItemContentsModel,
-    UnavailableVRItemContentsModel,
 )
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
-from fanzadl_webui.dependencies import get_manager
+from fanzadl_webui.dependencies import LIBRARY_DB_PATH, get_manager
+from fanzadl_webui.library_db import (
+    delete_unavailable_item,
+    get_unavailable_items,
+    mark_item_unavailable,
+)
 
 LibraryItem = VideoLibraryItemContentsModel | VRLibraryItemContentsModel
 
@@ -40,6 +40,7 @@ class ExpiredLibraryItemResponse(BaseModel):
     title: str
     content_type: Literal["video", "vr"]
     package_image_url: str
+    parts: int
     purchase_date: datetime
     expire: date
     trans_type: Literal["download", "stream"]
@@ -75,23 +76,6 @@ def _serialize(item: LibraryItem) -> LibraryItemResponse:
     )
 
 
-def _serialize_expired(
-    item: UnavailableLibraryItemContentsModel,
-) -> ExpiredLibraryItemResponse:
-    return ExpiredLibraryItemResponse(
-        mylibrary_id=item.mylibrary_id,
-        content_id=item.content_id,
-        title=item.title,
-        content_type=item.content_type,
-        package_image_url=f"/api/images/{item.content_id}",
-        purchase_date=item.purchase_date,
-        expire=item.expire,
-        trans_type=item.trans_type,
-        javstash_id=getattr(item, "javstash_id", None),
-        javstash_studio_code=getattr(item, "javstash_studio_code", None),
-    )
-
-
 @router.post(
     "/expire/",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -101,35 +85,40 @@ def dev_expire_item(
     body: _DevExpireBody,
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
 ) -> None:
-    item = manager.library.get(body.mylibrary_id)
-    if item is None:
+    if manager.library.get(body.mylibrary_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Item not found in library"
         )
-
-    if item.content_type == "video":
-        unavailable_item = UnavailableVideoItemContentsModel.from_contents_model(item)
-    else:
-        unavailable_item = UnavailableVRItemContentsModel.from_contents_model(item)
-
-    dummy_id = -body.mylibrary_id
-    unavailable_item.mylibrary_id = dummy_id
-    manager.expired_library[dummy_id] = unavailable_item
+    mark_item_unavailable(LIBRARY_DB_PATH, body.mylibrary_id)
 
 
 @router.get("/expired/")
 def get_expired_library(
-    manager: Annotated[FanzaDLManager, Depends(get_manager)],
-) -> dict[int, ExpiredLibraryItemResponse]:
-    return {k: _serialize_expired(v) for k, v in manager.expired_library.items()}
+    manager: Annotated[FanzaDLManager, Depends(get_manager)],  # noqa: ARG001
+) -> list[ExpiredLibraryItemResponse]:
+    rows = get_unavailable_items(LIBRARY_DB_PATH)
+    return [
+        ExpiredLibraryItemResponse(
+            mylibrary_id=row["mylibrary_id"],
+            content_id=row["content_id"],
+            title=row["title"],
+            content_type=row["content_type"],
+            package_image_url=f"/api/images/{row['content_id']}",
+            parts=row["parts"],
+            purchase_date=row["purchase_date"],
+            expire=row["expire"],
+            trans_type=row["trans_type"],
+        )
+        for row in rows
+    ]
 
 
 @router.delete("/expired/{mylibrary_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_expired_item(
     mylibrary_id: int,
-    manager: Annotated[FanzaDLManager, Depends(get_manager)],
+    manager: Annotated[FanzaDLManager, Depends(get_manager)],  # noqa: ARG001
 ) -> None:
-    if manager.expired_library.pop(mylibrary_id, None) is None:
+    if not delete_unavailable_item(LIBRARY_DB_PATH, mylibrary_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Expired item not found"
         )

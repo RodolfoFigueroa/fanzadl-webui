@@ -65,7 +65,7 @@ const sortedExpiredLibrary = $derived(
                 new Date(a.purchase_date).getTime() -
                 new Date(b.purchase_date).getTime();
         } else if (sortField === 'parts') {
-            cmp = 0; // parts unavailable for expired items
+            cmp = (a.parts || 1) - (b.parts || 1);
         } else if (sortField === 'expire') {
             cmp = daysLeft(a.expire) - daysLeft(b.expire);
         } else if (sortField === 'content_id') {

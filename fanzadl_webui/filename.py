@@ -1,6 +1,7 @@
 import asyncio
 import re
 from pathlib import Path
+from typing import Any
 
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)(?::([^}]*))?\}")
 _ILLEGAL_CHARS_RE = re.compile(r'[\\:*?"<>|]')
@@ -150,7 +151,7 @@ def scan_download_counts(
     return counts
 
 
-async def rescan_and_store(app_state: object) -> None:
+async def rescan_and_store(app_state: Any) -> None:
     """Rescan the download directory and update ``app_state.download_counts``.
 
     No-op if no manager is authenticated. Runs the filesystem scan in a thread

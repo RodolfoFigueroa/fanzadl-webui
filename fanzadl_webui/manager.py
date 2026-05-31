@@ -8,7 +8,7 @@ from fanzadl import FanzaDLManager
 from fanzadl.models.library import LibraryDataModel
 from fanzadl.models.video import LibraryItemContentsModel
 
-from fanzadl_webui.library_cache import delete_library_cache, load_library_cache
+from fanzadl_webui.library_db import delete_all, load_available_items
 
 logger = logging.getLogger(__name__)
 
@@ -53,15 +53,15 @@ class PersistingFanzaDLManager(FanzaDLManager):
         self,
         *args,
         save_fn: Callable[[str, str], None],
-        library_cache_path: Path | None = None,
+        library_db_path: Path | None = None,
         **kwargs,
     ) -> None:
         self._save_fn = save_fn
-        self._library_cache_path = library_cache_path
+        self._library_db_path = library_db_path
         self._library_cache: dict[int, dict] = {}
         self._ids_restored_from_cache: set[int] = set()
         self._rotation_lock = threading.Lock()
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, track_expired_items=False, **kwargs)
 
     def rotate_tokens(self) -> None:
         token_before = self.refresh_token
@@ -92,9 +92,9 @@ class PersistingFanzaDLManager(FanzaDLManager):
 
     def update_library(self) -> None:
         self._ids_restored_from_cache = set()
-        if self._library_cache_path is not None:
-            self._library_cache = load_library_cache(
-                self._library_cache_path, self.user_id
+        if self._library_db_path is not None:
+            self._library_cache = load_available_items(
+                self._library_db_path, self.user_id
             )
         try:
             super().update_library()
@@ -104,8 +104,8 @@ class PersistingFanzaDLManager(FanzaDLManager):
                     "Library update failed with cache loaded. Exception:\n%s", exc
                 )
 
-                assert self._library_cache_path is not None  # noqa: S101
-                delete_library_cache(self._library_cache_path)
+                assert self._library_db_path is not None  # noqa: S101
+                delete_all(self._library_db_path)
                 self._library_cache = {}
                 super().update_library()
             else:

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,16 +15,16 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 from fanzadl_webui.api_key_store import load_api_key, save_api_key
-from fanzadl_webui.config_store import load_config, save_config
+from fanzadl_webui.config_store import AppConfig, load_config, save_config
 from fanzadl_webui.dependencies import (
     CONFIG_PATH,
     IMAGE_CACHE_DIR,
     JAVSTASH_KEY_PATH,
-    LIBRARY_CACHE_PATH,
+    LIBRARY_DB_PATH,
     TOKEN_STORE_PATH,
 )
 from fanzadl_webui.filename import rescan_and_store
-from fanzadl_webui.library_cache import save_library_cache
+from fanzadl_webui.library_db import save_library_db
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes import (
     auth,
@@ -42,131 +42,163 @@ from fanzadl_webui.token_store import delete_tokens, load_tokens, save_tokens
 logger = logging.getLogger(__name__)
 
 
+def _setup_logging(default_log_level: str, config: AppConfig) -> None:
+    logging.basicConfig(
+        level=default_log_level,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    logging.getLogger().setLevel(config.log_level)
+
+
+def _load_or_create_config(default_log_level: str) -> AppConfig:
+    config_exists = CONFIG_PATH.exists()
+    config = load_config(CONFIG_PATH)
+    if not config_exists:
+        config = config.model_copy(update={"log_level": default_log_level})
+        save_config(CONFIG_PATH, config)
+    return config
+
+
+def _make_persistence_handlers(
+    enc_key_str: str | None,
+) -> tuple[Callable[[str, str], None], Callable[[str], None], str | None]:
+    if enc_key_str:
+        enc_key = enc_key_str.encode()
+
+        def save_fn(user_id: str, refresh_token: str) -> None:
+            save_tokens(TOKEN_STORE_PATH, enc_key, user_id, refresh_token)
+
+        def save_api_key_fn(api_key: str) -> None:
+            save_api_key(JAVSTASH_KEY_PATH, enc_key, api_key)
+
+        javstash_api_key = load_api_key(JAVSTASH_KEY_PATH, enc_key)
+    else:
+
+        def save_fn(user_id: str, refresh_token: str) -> None:  # type: ignore[misc]
+            pass
+
+        def save_api_key_fn(api_key: str) -> None:  # type: ignore[misc]
+            pass
+
+        javstash_api_key = None
+
+    return save_fn, save_api_key_fn, javstash_api_key
+
+
+def _init_app_state(
+    app: FastAPI,
+    config: AppConfig,
+    client: httpx.AsyncClient,
+    save_fn: Callable[[str, str], None],
+    save_api_key_fn: Callable[[str], None],
+    javstash_api_key: str | None,
+    scheduler: AsyncIOScheduler,
+) -> None:
+    app.state.http_client = client
+    app.state.manager = None
+    app.state.jobs: dict = {}
+    app.state.queues: dict = {}
+    app.state.max_concurrent_downloads: int = config.max_concurrent_downloads
+    app.state.log_level: str = config.log_level
+    app.state.download_thread_count: int = config.download_thread_count
+    app.state.single_part_filename_template: str = config.single_part_filename_template
+    app.state.multi_part_filename_template: str = config.multi_part_filename_template
+    app.state.library_refresh_enabled: bool = config.library_refresh_enabled
+    app.state.library_refresh_cron: str = config.library_refresh_cron
+    app.state.config_path: Path = CONFIG_PATH
+    app.state.download_slot_condition = asyncio.Condition()
+    app.state.background_tasks: set[asyncio.Task] = set()
+    app.state.login_lock = asyncio.Lock()
+    app.state.stream_cache: dict = {}
+    app.state.download_counts: dict = {}
+    app.state.save_fn = save_fn
+    app.state.save_api_key_fn = save_api_key_fn
+    app.state.javstash_api_key: str | None = javstash_api_key
+    app.state.javstash_enabled: bool = javstash_api_key is not None
+    app.state.scheduler = scheduler
+
+
+async def _warm_and_save(manager: PersistingFanzaDLManager) -> None:
+    restored = manager._ids_restored_from_cache  # noqa: SLF001
+    new_ids = set(manager.library) - restored
+    await warm_all_details(manager, item_ids=new_ids)
+    await asyncio.to_thread(
+        save_library_db,
+        LIBRARY_DB_PATH,
+        manager.user_id,
+        manager,
+        new_ids,
+    )
+    manager._ids_restored_from_cache = set()  # noqa: SLF001
+
+
+async def _try_restore_session(
+    app: FastAPI,
+    enc_key: bytes,
+    save_fn: Callable[[str, str], None],
+    javstash_api_key: str | None,
+    client: httpx.AsyncClient,
+) -> None:
+    tokens = load_tokens(TOKEN_STORE_PATH, enc_key)
+    if tokens is None:
+        return
+    user_id, refresh_token = tokens
+    try:
+        manager = await asyncio.to_thread(
+            PersistingFanzaDLManager,
+            user_id=user_id,
+            refresh_token=refresh_token,
+            save_fn=save_fn,
+            javstash_api_key=javstash_api_key,
+            library_db_path=LIBRARY_DB_PATH,
+            auto_populate_library=False,
+        )
+        await asyncio.to_thread(manager.update_library)
+        app.state.manager = manager
+        await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
+        await rescan_and_store(app.state)
+        for coro in (
+            images.precache_all(manager, client, IMAGE_CACHE_DIR),
+            _warm_and_save(manager),
+        ):
+            task = asyncio.create_task(coro)
+            app.state.background_tasks.add(task)
+            task.add_done_callback(app.state.background_tasks.discard)
+        logger.info("Session restored from token store")
+    except AuthExpiredError:
+        logger.warning("Stored tokens are expired; deleting token store")
+        delete_tokens(TOKEN_STORE_PATH)
+    except Exception:
+        logger.exception(
+            "Failed to restore session from token store; deleting token store"
+        )
+        delete_tokens(TOKEN_STORE_PATH)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    _default_log_level = os.environ.get("DEFAULT_LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(
-        level=_default_log_level,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-
-    _config_exists = CONFIG_PATH.exists()
-    _config = load_config(CONFIG_PATH)
-    if not _config_exists:
-        _config = _config.model_copy(update={"log_level": _default_log_level})
-        save_config(CONFIG_PATH, _config)
-    logging.getLogger().setLevel(_config.log_level)
-
+    default_log_level = os.environ.get("DEFAULT_LOG_LEVEL", "INFO").upper()
+    config = _load_or_create_config(default_log_level)
+    _setup_logging(default_log_level, config)
+    enc_key_str = os.environ.get("TOKEN_ENCRYPTION_KEY")
+    save_fn, save_api_key_fn, javstash_api_key = _make_persistence_handlers(enc_key_str)
+    scheduler = AsyncIOScheduler()
+    scheduler.start()
     async with httpx.AsyncClient() as client:
-        app.state.http_client = client
-        app.state.manager = None
-        app.state.jobs: dict = {}
-        app.state.queues: dict = {}
-        app.state.max_concurrent_downloads: int = _config.max_concurrent_downloads
-        app.state.log_level: str = _config.log_level
-        app.state.download_thread_count: int = _config.download_thread_count
-        app.state.single_part_filename_template: str = (
-            _config.single_part_filename_template
+        _init_app_state(
+            app, config, client, save_fn, save_api_key_fn, javstash_api_key, scheduler
         )
-        app.state.multi_part_filename_template: str = (
-            _config.multi_part_filename_template
-        )
-        app.state.library_refresh_enabled: bool = _config.library_refresh_enabled
-        app.state.library_refresh_cron: str = _config.library_refresh_cron
-        app.state.config_path: Path = CONFIG_PATH
-        app.state.download_slot_condition = asyncio.Condition()
-        app.state.background_tasks: set[asyncio.Task] = set()
-        app.state.login_lock = asyncio.Lock()
-        app.state.stream_cache: dict = {}
-        app.state.download_counts: dict = {}
-        _enc_key_str = os.environ.get("TOKEN_ENCRYPTION_KEY")
-        if _enc_key_str:
-            _enc_key = _enc_key_str.encode()
-
-            def save_fn(user_id: str, refresh_token: str) -> None:
-                save_tokens(TOKEN_STORE_PATH, _enc_key, user_id, refresh_token)
-
-            def save_api_key_fn(api_key: str) -> None:
-                save_api_key(JAVSTASH_KEY_PATH, _enc_key, api_key)
-
-            _javstash_api_key = load_api_key(JAVSTASH_KEY_PATH, _enc_key)
-        else:
-
-            def save_fn(user_id: str, refresh_token: str) -> None:  # type: ignore[misc]
-                pass
-
-            def save_api_key_fn(api_key: str) -> None:  # type: ignore[misc]
-                pass
-
-            _javstash_api_key = None
-
-        app.state.save_fn = save_fn
-        app.state.save_api_key_fn = save_api_key_fn
-        app.state.javstash_api_key: str | None = _javstash_api_key
-        app.state.javstash_enabled: bool = _javstash_api_key is not None
-
-        _scheduler = AsyncIOScheduler()
-        _scheduler.start()
-        app.state.scheduler = _scheduler
-
-        if _enc_key_str:
-            tokens = load_tokens(TOKEN_STORE_PATH, _enc_key)
-            if tokens is not None:
-                _user_id, _refresh_token = tokens
-                try:
-                    _manager = await asyncio.to_thread(
-                        PersistingFanzaDLManager,
-                        user_id=_user_id,
-                        refresh_token=_refresh_token,
-                        save_fn=save_fn,
-                        javstash_api_key=_javstash_api_key,
-                        library_cache_path=LIBRARY_CACHE_PATH,
-                        auto_populate_library=False,
-                    )
-                    await asyncio.to_thread(_manager.update_library)
-                    app.state.manager = _manager
-                    await asyncio.to_thread(
-                        images.purge_stale, _manager, IMAGE_CACHE_DIR
-                    )
-
-                    async def _warm_and_save() -> None:
-                        _restored = _manager._ids_restored_from_cache  # noqa: SLF001
-                        _new_ids = set(_manager.library) - _restored
-                        await warm_all_details(_manager, item_ids=_new_ids)
-                        await asyncio.to_thread(
-                            save_library_cache,
-                            LIBRARY_CACHE_PATH,
-                            _manager.user_id,
-                            _manager,
-                        )
-                        _manager._ids_restored_from_cache = set()  # noqa: SLF001
-
-                    await rescan_and_store(app.state)
-                    for _coro in (
-                        images.precache_all(_manager, client, IMAGE_CACHE_DIR),
-                        _warm_and_save(),
-                    ):
-                        _task = asyncio.create_task(_coro)
-                        app.state.background_tasks.add(_task)
-                        _task.add_done_callback(app.state.background_tasks.discard)
-                    logger.info("Session restored from token store")
-                except AuthExpiredError:
-                    logger.warning("Stored tokens are expired; deleting token store")
-                    delete_tokens(TOKEN_STORE_PATH)
-                except Exception:
-                    logger.exception(
-                        "Failed to restore session from token store; deleting token store"
-                    )
-                    delete_tokens(TOKEN_STORE_PATH)
-
-        if _config.library_refresh_enabled:
-            schedule_library_refresh(app, _config.library_refresh_cron)
-
+        if enc_key_str:
+            await _try_restore_session(
+                app, enc_key_str.encode(), save_fn, javstash_api_key, client
+            )
+        if config.library_refresh_enabled:
+            schedule_library_refresh(app, config.library_refresh_cron)
         try:
             yield
         finally:
-            _scheduler.shutdown(wait=False)
+            scheduler.shutdown(wait=False)
 
 
 app = FastAPI(lifespan=lifespan)
