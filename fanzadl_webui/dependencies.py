@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from fanzadl_webui.state import AppState
 
 DOWNLOAD_DIR = Path("/download")
-IMAGE_CACHE_DIR = Path("/image_cache")
+IMAGE_CACHE_DIR = Path("/data/image_cache")
 TOKEN_STORE_PATH = Path("/data/tokens.enc")
 LIBRARY_DB_PATH = Path("/data/library.db")
 JAVSTASH_KEY_PATH = Path("/data/javstash_api_key.enc")

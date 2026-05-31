@@ -8,10 +8,8 @@ services:
       - .env
     volumes:
       - ${DOWNLOAD_DIR}:/download
-      - image_cache:/image_cache
-      - token_data:/data
+      - data:/data
     restart: unless-stopped
 
 volumes:
-  image_cache:
-  token_data:
+  data:
