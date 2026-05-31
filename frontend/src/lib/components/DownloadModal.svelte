@@ -52,6 +52,19 @@ let streamsPerPart = $state<StreamVariant[][]>(partNumbers.map(() => []));
 let selectedPerPart = $state<StreamVariant[]>(
     partNumbers.map(() => ({}) as StreamVariant),
 );
+let streamsAreUniform = $state(false);
+let showPerPart = $state(false);
+let sharedSelected = $state<StreamVariant>({} as StreamVariant);
+
+$effect(() => {
+    if (streamsAreUniform && !showPerPart && sharedSelected.bandwidth != null) {
+        selectedPerPart = streamsPerPart.map(
+            (variants) =>
+                variants.find((v) => v.index === sharedSelected.index) ??
+                sharedSelected,
+        );
+    }
+});
 let filenamesPerPart = $state<string[]>(
     partNumbers.map((p) => renderFilenameTemplate(_template, item, p)),
 );
@@ -63,10 +76,7 @@ let submitError = $state('');
 let copiedPerPart = $state<boolean[]>(partNumbers.map(() => false));
 
 let activeJobs = $state<DownloadJob[]>([]);
-let filenameWarnings = $state<string[]>(partNumbers.map(() => ''));
-const _checkTimers: ReturnType<typeof setTimeout>[] = partNumbers.map(
-    () => 0 as unknown as ReturnType<typeof setTimeout>,
-);
+let fileExistsPerPart = $state<boolean[]>(partNumbers.map(() => false));
 
 async function copyUrl(i: number) {
     const uri = selectedPerPart[i]?.uri;
@@ -123,31 +133,17 @@ let canSubmit = $derived(
 let hasAnyConflict = $derived(
     partNumbers.some(
         (_, i) =>
-            enabledParts[i] && (!!filenameErrors[i] || !!filenameWarnings[i]),
+            enabledParts[i] && (!!filenameErrors[i] || fileExistsPerPart[i]),
     ),
 );
 
-function scheduleFilenameCheck(i: number, name: string) {
-    clearTimeout(_checkTimers[i]);
-    if (!name) {
-        const updated = [...filenameWarnings];
-        updated[i] = '';
-        filenameWarnings = updated;
-        return;
-    }
-    _checkTimers[i] = setTimeout(async () => {
-        try {
-            const { file_exists } = await checkFilename(name);
-            const updated = [...filenameWarnings];
-            updated[i] = file_exists
-                ? 'A file with this name already exists and will be overwritten.'
-                : '';
-            filenameWarnings = updated;
-        } catch {
-            // best-effort check; silently ignore errors
-        }
-    }, 500);
-}
+let selectedIndexPerPart = $derived(
+    partNumbers.map((_, i) =>
+        streamsPerPart[i].findIndex(
+            (v) => v.index === selectedPerPart[i]?.index,
+        ),
+    ),
+);
 
 onMount(async () => {
     void getJobs()
@@ -158,9 +154,16 @@ onMount(async () => {
             // best-effort; silently ignore
         });
 
-    for (let i = 0; i < partNumbers.length; i++) {
-        scheduleFilenameCheck(i, filenamesPerPart[i]);
-    }
+    // Check which parts already exist on disk (one-shot, filenames are fixed)
+    void Promise.all(
+        filenamesPerPart.map((name) =>
+            checkFilename(name)
+                .then(({ file_exists }) => file_exists)
+                .catch(() => false),
+        ),
+    ).then((results) => {
+        fileExistsPerPart = results;
+    });
 
     try {
         const results: StreamVariant[][] = [];
@@ -175,6 +178,22 @@ onMount(async () => {
         selectedPerPart = streamsPerPart.map(
             (variants) => variants[0] ?? ({} as StreamVariant),
         );
+        if (streamsPerPart.length > 1) {
+            const ref = streamsPerPart[0];
+            streamsAreUniform = streamsPerPart.every(
+                (variants) =>
+                    variants.length === ref.length &&
+                    variants.every(
+                        (v, idx) =>
+                            v.index === ref[idx].index &&
+                            v.bandwidth === ref[idx].bandwidth &&
+                            v.codecs === ref[idx].codecs,
+                    ),
+            );
+            if (streamsAreUniform) {
+                sharedSelected = streamsPerPart[0][0] ?? ({} as StreamVariant);
+            }
+        }
     } catch (e) {
         streamError =
             e instanceof Error ? e.message : 'Failed to fetch stream variants';
@@ -212,7 +231,8 @@ async function handleSubmit() {
 
 function deselectExisting() {
     enabledParts = partNumbers.map(
-        (_, i) => enabledParts[i] && !filenameErrors[i] && !filenameWarnings[i],
+        (_, i) =>
+            enabledParts[i] && !filenameErrors[i] && !fileExistsPerPart[i],
     );
 }
 
@@ -313,6 +333,48 @@ function handleKeydown(e: KeyboardEvent) {
                         </button>
                     </div>
                 {/if}
+                {#if streamsAreUniform}
+                    <div class="bg-th-input rounded-lg p-3 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label
+                                for="quality-shared"
+                                class="text-xs text-th-text-dim"
+                                >Quality (all parts)</label
+                            >
+                            <label
+                                class="flex items-center gap-1.5 cursor-pointer select-none"
+                            >
+                                <input
+                                    type="checkbox"
+                                    bind:checked={showPerPart}
+                                    class="accent-sakura-400 w-3.5 h-3.5 cursor-pointer"
+                                />
+                                <span class="text-xs text-th-text-dim"
+                                    >Per-part settings</span
+                                >
+                            </label>
+                        </div>
+                        {#if !showPerPart}
+                            <select
+                                id="quality-shared"
+                                class="w-full bg-th-input-nested border border-th-border-input rounded-lg px-2 py-1.5
+								text-sm text-th-text focus:outline-none focus:ring-2 focus:ring-th-border-strong"
+                                onchange={(e) => {
+                                    const idx = parseInt(
+                                        (e.target as HTMLSelectElement).value,
+                                    );
+                                    sharedSelected = streamsPerPart[0][idx];
+                                }}
+                            >
+                                {#each streamsPerPart[0] as variant, vi}
+                                    <option value={vi}>
+                                        {formatBandwidth(variant.bandwidth)}
+                                    </option>
+                                {/each}
+                            </select>
+                        {/if}
+                    </div>
+                {/if}
                 {#each partNumbers as part, i}
                     <div
                         class="bg-th-input rounded-lg p-3 space-y-3 transition-opacity
@@ -338,88 +400,74 @@ function handleKeydown(e: KeyboardEvent) {
                             </div>
                         {/if}
 
-                        {#if streamsPerPart[i].length > 0}
-                            <div>
-                                <label
-                                    for="quality-{i}"
-                                    class="text-xs text-th-text-dim block mb-1"
-                                    >Quality</label
-                                >
-                                <select
-                                    id="quality-{i}"
-                                    class="w-full bg-th-input-nested border border-th-border-input rounded-lg px-2 py-1.5
+{#if !streamsAreUniform || showPerPart}
+                            {#if streamsPerPart[i].length > 0}
+                                <div>
+                                    <label
+                                        for="quality-{i}"
+                                        class="text-xs text-th-text-dim block mb-1"
+                                        >Quality</label
+                                    >
+                                    <select
+                                        id="quality-{i}"
+                                        class="w-full bg-th-input-nested border border-th-border-input rounded-lg px-2 py-1.5
 									text-sm text-th-text focus:outline-none focus:ring-2 focus:ring-th-border-strong"
-                                    onchange={(e) => {
-                                        const idx = parseInt(
-                                            (e.target as HTMLSelectElement)
-                                                .value,
-                                        );
-                                        const updated = [...selectedPerPart];
-                                        updated[i] = streamsPerPart[i][idx];
-                                        selectedPerPart = updated;
-                                    }}
+                                        onchange={(e) => {
+                                            const idx = parseInt(
+                                                (e.target as HTMLSelectElement)
+                                                    .value,
+                                            );
+                                            const updated = [...selectedPerPart];
+                                            updated[i] = streamsPerPart[i][idx];
+                                            selectedPerPart = updated;
+                                        }}
+                                    >
+                                        {#each streamsPerPart[i] as variant, vi}
+                                            <option
+                                                value={vi}
+                                                selected={vi ===
+                                                    selectedIndexPerPart[i]}
+                                            >
+                                                {formatBandwidth(
+                                                    variant.bandwidth,
+                                                )}
+                                            </option>
+                                        {/each}
+                                    </select>
+                                    {#if selectedPerPart[i]?.uri}
+                                        <div class="flex justify-end mt-1">
+                                            <button
+                                                onclick={() => copyUrl(i)}
+                                                class="text-xs text-th-text-dim hover:text-th-text-muted transition-colors"
+                                            >
+                                                {copiedPerPart[i]
+                                                    ? "Copied!"
+                                                    : "Copy URL"}
+                                            </button>
+                                        </div>
+                                    {/if}
+                                </div>
+                            {:else}
+                                <p
+                                    class="text-xs text-amber-600 dark:text-amber-400"
                                 >
-                                    {#each streamsPerPart[i] as variant, vi}
-                                        <option value={vi}>
-                                            {formatBandwidth(variant.bandwidth)}
-                                        </option>
-                                    {/each}
-                                </select>
-                                {#if selectedPerPart[i]?.uri}
-                                    <div class="flex justify-end mt-1">
-                                        <button
-                                            onclick={() => copyUrl(i)}
-                                            class="text-xs text-th-text-dim hover:text-th-text-muted transition-colors"
-                                        >
-                                            {copiedPerPart[i]
-                                                ? "Copied!"
-                                                : "Copy URL"}
-                                        </button>
-                                    </div>
-                                {/if}
-                            </div>
-                        {:else}
-                            <p class="text-xs text-amber-600 dark:text-amber-400">
-                                No stream variants found for this part.
-                            </p>
+                                    No stream variants found for this part.
+                                </p>
+                            {/if}
                         {/if}
 
                         <div>
-                            <label
-                                for="filename-{i}"
-                                class="text-xs text-th-text-dim block mb-1"
-                                >Output filename</label
-                            >
-                            <div class="flex items-center">
-                                <input
-                                    id="filename-{i}"
-                                    type="text"
-                                    bind:value={filenamesPerPart[i]}
-                                    oninput={(e) =>
-                                        scheduleFilenameCheck(
-                                            i,
-                                            (e.target as HTMLInputElement).value,
-                                        )}
-                                    class="flex-1 min-w-0 bg-th-input-nested border border-th-border-input rounded-l-lg
-										px-2 py-1.5 text-sm text-th-text focus:outline-none focus:ring-2
-										{filenameErrors[i]
-                                            ? 'focus:ring-red-500 border-red-500'
-                                            : 'focus:ring-th-border-strong'}"
-                                />
-                                <span
-                                    class="flex-shrink-0 bg-th-input-nested border border-l-0 border-th-border-input
-										rounded-r-lg px-2 py-1.5 text-sm text-th-text-dim"
-                                >
-                                    .mp4
-                                </span>
-                            </div>
+                            <p class="text-xs text-th-text-dim block mb-1">Output filename</p>
+                            <p class="text-sm text-th-text font-mono break-all">
+                                {filenamesPerPart[i]}.mp4
+                            </p>
                             {#if filenameErrors[i]}
                                 <p class="text-xs text-red-400 mt-1">
                                     {filenameErrors[i]}
                                 </p>
-                            {:else if filenameWarnings[i]}
+                            {:else if fileExistsPerPart[i]}
                                 <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                                    {filenameWarnings[i]}
+                                    A file with this name already exists and will be overwritten.
                                 </p>
                             {/if}
                         </div>
