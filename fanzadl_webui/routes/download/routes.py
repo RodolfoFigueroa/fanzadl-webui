@@ -193,7 +193,7 @@ async def global_job_events(
 
     async def event_generator() -> AsyncGenerator[dict[str, str]]:
         """Yield active-count snapshots until the client disconnects."""
-        q: asyncio.Queue[dict[str, int] | None] = asyncio.Queue()
+        q: asyncio.Queue[dict[str, int] | None] = asyncio.Queue(maxsize=50)
         global_job_queues.append(q)
         try:
             yield {"data": json.dumps(_compute_active_counts(jobs))}
@@ -360,7 +360,7 @@ async def job_events(
 
     async def event_generator() -> AsyncGenerator[dict[str, str]]:
         """Yield serialized job snapshots until a None sentinel is received."""
-        q: asyncio.Queue[DownloadJob | None] = asyncio.Queue()
+        q: asyncio.Queue[DownloadJob | None] = asyncio.Queue(maxsize=100)
         queues.setdefault(job_id, []).append(q)
         try:
             # Check after appending to avoid a race between job completion

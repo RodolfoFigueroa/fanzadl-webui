@@ -88,7 +88,11 @@ def _publish_global(
     if global_job_queues is None:
         return
     for q in global_job_queues:
-        q.put_nowait(counts)
+        if q.full():
+            with contextlib.suppress(asyncio.QueueEmpty):
+                q.get_nowait()
+        with contextlib.suppress(asyncio.QueueFull):
+            q.put_nowait(counts)
 
 
 def _publish(job: DownloadJob, queues: Queues) -> None:
@@ -100,7 +104,11 @@ def _publish(job: DownloadJob, queues: Queues) -> None:
     """
     snapshot = job.model_copy()
     for q in queues.get(job.job_id, []):
-        q.put_nowait(snapshot)
+        if q.full():
+            with contextlib.suppress(asyncio.QueueEmpty):
+                q.get_nowait()
+        with contextlib.suppress(asyncio.QueueFull):
+            q.put_nowait(snapshot)
 
 
 def _close_streams(job_id: str, queues: Queues) -> None:
@@ -113,7 +121,11 @@ def _close_streams(job_id: str, queues: Queues) -> None:
         queues: Mapping of job IDs to lists of subscriber queues.
     """
     for q in queues.get(job_id, []):
-        q.put_nowait(None)
+        if q.full():
+            with contextlib.suppress(asyncio.QueueEmpty):
+                q.get_nowait()
+        with contextlib.suppress(asyncio.QueueFull):
+            q.put_nowait(None)
 
 
 async def cancel_active_jobs(
