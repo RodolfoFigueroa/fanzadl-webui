@@ -13,7 +13,7 @@ from fanzadl_webui.dependencies import (
     LIBRARY_DB_PATH,
     get_app_state,
 )
-from fanzadl_webui.library_db import save_library_db
+from fanzadl_webui.library_db import save_library_db, update_javstash_info_db
 from fanzadl_webui.manager import warm_all_details
 from fanzadl_webui.scheduler import schedule_library_refresh, unschedule_library_refresh
 from fanzadl_webui.state import AppState
@@ -104,6 +104,9 @@ async def update_settings(
                         manager.user_id,
                         manager,
                         _new_ids,
+                    )
+                    await asyncio.to_thread(
+                        update_javstash_info_db, LIBRARY_DB_PATH, manager
                     )
 
                 _task = asyncio.create_task(_warm_and_save())

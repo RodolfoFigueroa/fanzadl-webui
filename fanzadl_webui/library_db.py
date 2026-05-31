@@ -269,3 +269,33 @@ def mark_item_unavailable(path: Path, mylibrary_id: int) -> None:
             )
     finally:
         conn.close()
+
+
+def update_javstash_info_db(path: Path, manager: FanzaDLManager) -> None:
+    """Update ``javstash_info_json`` for all items currently in the manager's library.
+
+    Only writes rows where ``_javstash_info`` has been fetched (i.e. is present
+    in the item's ``__dict__``). Rows whose ``_javstash_info`` is still ``None``
+    are left untouched so that a successful previous fetch is not overwritten.
+
+    Args:
+        path: Path to the SQLite database file.
+        manager: The manager whose library items will be inspected.
+    """
+    try:
+        conn = _get_conn(path)
+    except Exception:
+        logger.warning("Failed to open library DB for javstash update", exc_info=True)
+        return
+    try:
+        with conn:
+            for item_id, item in manager.library.items():
+                raw = item.__dict__.get("_javstash_info")
+                if raw is None:
+                    continue
+                conn.execute(
+                    "UPDATE library SET javstash_info_json = ? WHERE mylibrary_id = ?",
+                    (json.dumps(raw), item_id),
+                )
+    finally:
+        conn.close()
