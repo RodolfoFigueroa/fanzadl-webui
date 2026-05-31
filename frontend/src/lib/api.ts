@@ -108,6 +108,7 @@ export async function startDownload(
     part: number,
     streamIndex: number,
     outputName: string,
+    contentId?: string,
 ): Promise<{ job_id: string }> {
     return apiFetch('/api/download/', {
         method: 'POST',
@@ -116,6 +117,7 @@ export async function startDownload(
             part,
             stream_index: streamIndex,
             output_name: outputName,
+            content_id: contentId ?? null,
         }),
     });
 }
@@ -188,6 +190,31 @@ export function subscribeJobEvents(
         onerror(err) {
             if (signal?.aborted) return; // intentional abort — don't retry
             onError?.(err);
+            throw err; // stop retrying on unexpected errors
+        },
+    });
+}
+
+export async function getActiveJobCounts(): Promise<Record<string, number>> {
+    return apiFetch<Record<string, number>>('/api/jobs/active-counts/');
+}
+
+export function subscribeGlobalJobEvents(
+    onMessage: (counts: Record<string, number>) => void,
+    signal?: AbortSignal,
+): void {
+    void fetchEventSource('/api/jobs/global-events', {
+        signal,
+        onmessage(event) {
+            try {
+                const counts = JSON.parse(event.data) as Record<string, number>;
+                onMessage(counts);
+            } catch {
+                // ignore malformed events
+            }
+        },
+        onerror(err) {
+            if (signal?.aborted) return; // intentional abort — don't retry
             throw err; // stop retrying on unexpected errors
         },
     });

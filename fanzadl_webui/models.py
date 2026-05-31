@@ -17,6 +17,7 @@ class DownloadJob(BaseModel):
     job_id: str
     status: JobStatus
     output_name: str
+    content_id: str | None = None
     speed: str | None = None
     percent_done: float | None = None
     segments_done: int | None = None
@@ -28,11 +29,12 @@ class DownloadJob(BaseModel):
     error: str | None = None
 
     @classmethod
-    def create(cls, output_name: str) -> "DownloadJob":
+    def create(cls, output_name: str, content_id: str | None = None) -> "DownloadJob":
         return cls(
             job_id=str(uuid.uuid4()),
             status=JobStatus.pending,
             output_name=output_name,
+            content_id=content_id,
         )
 
 

@@ -14,6 +14,7 @@ __all__ = [
     "JobStatus",
     "Queues",
     "get_download_slot_condition",
+    "get_global_job_queues",
     "get_http_client",
     "get_jobs",
     "get_queues",
@@ -42,3 +43,11 @@ def get_download_slot_condition(request: Request) -> asyncio.Condition:
     from fanzadl_webui.dependencies import get_app_state
 
     return get_app_state(request).download_slot_condition
+
+
+def get_global_job_queues(
+    request: Request,
+) -> "list[asyncio.Queue[dict[str, int] | None]]":
+    from fanzadl_webui.dependencies import get_app_state
+
+    return get_app_state(request).global_job_queues

@@ -7,6 +7,7 @@ let {
     onDelete,
     javstashEnabled = false,
     downloadedCount = 0,
+    activeDownloadCount = 0,
     expired = false,
 }: {
     item: LibraryItem;
@@ -14,6 +15,7 @@ let {
     onDelete?: (item: LibraryItem) => void;
     javstashEnabled?: boolean;
     downloadedCount?: number;
+    activeDownloadCount?: number;
     expired?: boolean;
 } = $props();
 
@@ -108,8 +110,12 @@ const days = $derived(daysLeft(item.expire));
 			<span>{formatDate(item.purchase_date)}</span>
 		</div>
 		{#if !expired}
-			<div class="text-xs text-th-text-dim">
-				{downloadedCount}/{('parts' in item ? item.parts || 1 : 1)} downloaded
+			<div class="text-xs text-th-text-dim flex items-center gap-1 flex-wrap">
+				<span>{downloadedCount}/{('parts' in item ? item.parts || 1 : 1)} downloaded</span>
+				{#if activeDownloadCount > 0}
+					<span class="text-th-text-faint">·</span>
+					<span class="text-sakura-400 animate-pulse">{activeDownloadCount} downloading</span>
+				{/if}
 			</div>
 		{/if}
 		<div

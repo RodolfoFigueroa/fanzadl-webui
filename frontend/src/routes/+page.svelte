@@ -3,12 +3,14 @@ import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import {
     deleteExpiredItem,
+    getActiveJobCounts,
     getCachedLibrary,
     getDownloadCounts,
     getExpiredLibrary,
     getLibrary,
     getSettings,
     refreshLibrary,
+    subscribeGlobalJobEvents,
 } from '$lib/api';
 import DownloadModal from '$lib/components/DownloadModal.svelte';
 import VideoCard from '$lib/components/VideoCard.svelte';
@@ -23,6 +25,7 @@ let refreshing = $state(false);
 let selectedItem = $state<LibraryItem | null>(null);
 let javstashEnabled = $state(false);
 let downloadCounts = $state<Record<string, number>>({});
+let activeDownloadCounts = $state<Record<string, number>>({});
 
 type SortField = 'title' | 'purchase_date' | 'parts' | 'expire' | 'content_id';
 let sortField = $state<SortField>('purchase_date');
@@ -86,12 +89,14 @@ async function loadLibrary() {
         loading = false;
     }
     try {
-        const [expired, counts] = await Promise.all([
+        const [expired, counts, activeCounts] = await Promise.all([
             getExpiredLibrary(),
             getDownloadCounts(),
+            getActiveJobCounts(),
         ]);
         expiredLibrary = Object.values(expired);
         downloadCounts = counts;
+        activeDownloadCounts = activeCounts;
     } catch {
         // expired library / counts unavailable; leave as empty
     }
@@ -120,6 +125,15 @@ onMount(async () => {
     } catch {
         // settings unavailable; leave javstashEnabled as false
     }
+
+    const abortController = new AbortController();
+    subscribeGlobalJobEvents((counts) => {
+        activeDownloadCounts = counts;
+    }, abortController.signal);
+
+    return () => {
+        abortController.abort();
+    };
 });
 </script>
 
@@ -243,7 +257,7 @@ onMount(async () => {
 		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
 	>
 		{#each sortedLibrary as item (item.mylibrary_id)}
-			<VideoCard {item} {javstashEnabled} downloadedCount={downloadCounts[item.content_id] ?? 0} onDownload={(i) => (selectedItem = i)} />
+			<VideoCard {item} {javstashEnabled} downloadedCount={downloadCounts[item.content_id] ?? 0} activeDownloadCount={activeDownloadCounts[item.content_id] ?? 0} onDownload={(i) => (selectedItem = i)} />
 		{/each}
 	</div>
 {/if}

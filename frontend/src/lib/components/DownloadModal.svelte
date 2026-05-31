@@ -215,6 +215,7 @@ async function handleSubmit() {
                               partNumbers[i],
                               selectedPerPart[i].index,
                               filenamesPerPart[i],
+                              item.content_id,
                           ),
                       ]
                     : [],

@@ -28,6 +28,37 @@ class _ConcurrencyContext:
     jobs: dict[str, DownloadJob]
     condition: asyncio.Condition
     app_state: AppState
+    global_job_queues: "list[asyncio.Queue[dict[str, int] | None]]" = None  # type: ignore[assignment]
+
+
+def _compute_active_counts(jobs: dict[str, DownloadJob]) -> dict[str, int]:
+    """Compute a mapping of content_id to count of pending/running jobs.
+
+    Args:
+        jobs: Current job registry.
+
+    Returns:
+        Dict mapping each content_id to the number of its active jobs.
+    """
+    counts: dict[str, int] = {}
+    for job in jobs.values():
+        if job.content_id and job.status in (JobStatus.pending, JobStatus.running):
+            counts[job.content_id] = counts.get(job.content_id, 0) + 1
+    return counts
+
+
+def _publish_global(
+    counts: dict[str, int],
+    global_job_queues: "list[asyncio.Queue[dict[str, int] | None]]",
+) -> None:
+    """Broadcast active-count snapshot to all global SSE subscribers.
+
+    Args:
+        counts: Mapping of content_id to active job count.
+        global_job_queues: List of subscriber queues to broadcast to.
+    """
+    for q in global_job_queues:
+        q.put_nowait(counts)
 
 
 def _publish(job: DownloadJob, queues: Queues) -> None:
@@ -259,6 +290,30 @@ async def _stream_output(
     return output_lines
 
 
+def _finalize_and_broadcast(  # noqa: PLR0913
+    job: DownloadJob,
+    returncode: int | None,
+    output_lines: list[str],
+    save_dir: str,
+    save_name: str,
+    queues: Queues,
+    ctx: "_ConcurrencyContext",
+) -> None:
+    """Finalize job and broadcast updated active counts to global subscribers.
+
+    Args:
+        job: Job to finalize.
+        returncode: Process exit code.
+        output_lines: All stdout lines collected during the download.
+        save_dir: Directory where the output file was written.
+        save_name: Output filename stem (without extension).
+        queues: SSE subscriber queues for the job.
+        ctx: Concurrency context for broadcasting global counts.
+    """
+    _finalize_job(job, returncode, output_lines, save_dir, save_name, queues)
+    _publish_global(_compute_active_counts(ctx.jobs), ctx.global_job_queues)
+
+
 def _finalize_job(  # noqa: PLR0913
     job: DownloadJob,
     returncode: int | None,
@@ -319,7 +374,14 @@ async def _run_download(  # noqa: PLR0913
             and app state.
     """
     if not await _acquire_slot(job, concurrency):
+        _publish_global(
+            _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
+        )
         return
+
+    _publish_global(
+        _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
+    )
 
     try:
         media_url = await _resolve_media_url(
@@ -329,6 +391,9 @@ async def _run_download(  # noqa: PLR0913
         job.error = f"Failed to resolve media URL: {exc}"
         job.status = JobStatus.error
         _publish(job, queues)
+        _publish_global(
+            _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
+        )
         _close_streams(job.job_id, queues)
         return
 
@@ -346,9 +411,14 @@ async def _run_download(  # noqa: PLR0913
             job.error = str(exc)
             job.status = JobStatus.error
             _publish(job, queues)
+            _publish_global(
+                _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
+            )
             _close_streams(job.job_id, queues)
             return
-        _finalize_job(job, proc.returncode, output_lines, save_dir, save_name, queues)
+        _finalize_and_broadcast(
+            job, proc.returncode, output_lines, save_dir, save_name, queues, concurrency
+        )
         if job.status == JobStatus.done:
             _task = asyncio.create_task(rescan_and_store(concurrency.app_state))
             _background_tasks.add(_task)

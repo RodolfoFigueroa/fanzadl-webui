@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Annotated, Literal
@@ -13,15 +14,18 @@ from fanzadl_webui.jobs import (
     JobStatus,
     Queues,
     get_download_slot_condition,
+    get_global_job_queues,
     get_jobs,
     get_queues,
 )
 from fanzadl_webui.routes.download.runner import (
     _background_tasks,
     _close_streams,
+    _compute_active_counts,
     _ConcurrencyContext,
     _processes,
     _publish,
+    _publish_global,
     _run_download,
     cancel_active_jobs,
 )
@@ -35,6 +39,7 @@ class DownloadRequest(BaseModel):
     video_id: int
     part: int
     stream_index: int
+    content_id: str | None = None
 
 
 class FilenameCheckResponse(BaseModel):
@@ -62,6 +67,7 @@ async def start_download(
     queues: Annotated[Queues, Depends(get_queues)],
     condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
     app_state: Annotated[AppState, Depends(get_app_state)],
+    global_job_queues: Annotated[list, Depends(get_global_job_queues)],
 ) -> dict[str, str]:
     """Create a download job and dispatch it as a background task.
 
@@ -95,14 +101,16 @@ async def start_download(
     save_dir = str(save_dir_path)
     save_name = output_name_path.name
 
-    job = DownloadJob.create(output_name=body.output_name)
+    job = DownloadJob.create(output_name=body.output_name, content_id=body.content_id)
     jobs[job.job_id] = job
     queues[job.job_id] = []
     concurrency = _ConcurrencyContext(
         jobs=jobs,
         condition=condition,
         app_state=app_state,
+        global_job_queues=global_job_queues,
     )
+    _publish_global(_compute_active_counts(jobs), global_job_queues)
     task = asyncio.create_task(
         _run_download(
             job,
@@ -302,5 +310,57 @@ async def job_events(
                 job_queues.remove(q)
             if not job_queues:
                 queues.pop(job_id, None)
+
+    return EventSourceResponse(event_generator())
+
+
+@router.get("/jobs/active-counts/")
+def get_active_counts(
+    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+) -> dict[str, int]:
+    """Return a snapshot of pending/running job counts grouped by content_id.
+
+    Args:
+        jobs: Injected mapping of active download jobs keyed by job ID.
+
+    Returns:
+        A dict mapping content_id to the number of active jobs for that item.
+    """
+    return _compute_active_counts(jobs)
+
+
+@router.get("/jobs/global-events")
+async def global_job_events(
+    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+    global_job_queues: Annotated[list, Depends(get_global_job_queues)],
+) -> EventSourceResponse:
+    """Stream SSE events with active job counts grouped by content_id.
+
+    Sends an initial snapshot immediately, then broadcasts updated counts
+    whenever any job transitions to or from an active state. Cleans up the
+    subscriber queue when the client disconnects.
+
+    Args:
+        jobs: Injected mapping of active download jobs keyed by job ID.
+        global_job_queues: Injected list of subscriber queues for global events.
+
+    Returns:
+        An EventSourceResponse that streams serialized count dicts as JSON.
+    """
+
+    async def event_generator() -> AsyncGenerator[dict[str, str]]:
+        """Yield active-count snapshots until the client disconnects."""
+        q: asyncio.Queue[dict[str, int] | None] = asyncio.Queue()
+        global_job_queues.append(q)
+        try:
+            yield {"data": json.dumps(_compute_active_counts(jobs))}
+            while True:
+                counts = await q.get()
+                if counts is None:
+                    break
+                yield {"data": json.dumps(counts)}
+        finally:
+            if q in global_job_queues:
+                global_job_queues.remove(q)
 
     return EventSourceResponse(event_generator())
