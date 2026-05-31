@@ -6,10 +6,11 @@ from typing import Annotated
 
 import httpx
 from fanzadl import FanzaDLManager
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 
-from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, get_manager
+from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, get_app_state, get_manager
+from fanzadl_webui.state import AppState
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def purge_stale(manager: FanzaDLManager, cache_dir: Path) -> None:
 @router.get("/{content_id}")
 async def get_image(
     content_id: str,
-    request: Request,
+    app_state: Annotated[AppState, Depends(get_app_state)],
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
 ) -> FileResponse:
     dest = _cache_path(IMAGE_CACHE_DIR, content_id)
@@ -73,7 +74,7 @@ async def get_image(
                 detail="Image not found",
             )
         await _fetch_and_cache(
-            request.app.state.http_client,
+            app_state.http_client,
             str(item.package_image_url),
             dest,
         )

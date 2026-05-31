@@ -1,7 +1,10 @@
 import asyncio
 import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fanzadl_webui.state import AppState
 
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)(?::([^}]*))?\}")
 _ILLEGAL_CHARS_RE = re.compile(r'[\\:*?"<>|]')
@@ -151,7 +154,7 @@ def scan_download_counts(
     return counts
 
 
-async def rescan_and_store(app_state: Any) -> None:
+async def rescan_and_store(app_state: "AppState") -> None:
     """Rescan the download directory and update ``app_state.download_counts``.
 
     No-op if no manager is authenticated. Runs the filesystem scan in a thread
@@ -164,7 +167,7 @@ async def rescan_and_store(app_state: Any) -> None:
     """
     from fanzadl_webui.dependencies import DOWNLOAD_DIR  # avoid circular import
 
-    manager = getattr(app_state, "manager", None)
+    manager = app_state.manager
     if manager is None:
         return
 

@@ -1,57 +1,44 @@
 import asyncio
-import uuid
-from enum import StrEnum
 
 import httpx
 from fastapi import Request
-from pydantic import BaseModel
 
+from fanzadl_webui.models import (
+    DownloadJob,
+    JobStatus,
+    Queues,
+)
 
-class JobStatus(StrEnum):
-    pending = "pending"
-    running = "running"
-    done = "done"
-    error = "error"
-    cancelled = "cancelled"
-
-
-class DownloadJob(BaseModel):
-    job_id: str
-    status: JobStatus
-    output_name: str
-    speed: str | None = None
-    percent_done: float | None = None
-    segments_done: int | None = None
-    segments_total: int | None = None
-    bytes_downloaded: str | None = None
-    bytes_total: str | None = None
-    file_size: int | None = None
-    output_path: str | None = None
-    error: str | None = None
-
-    @classmethod
-    def create(cls, output_name: str) -> "DownloadJob":
-        return cls(
-            job_id=str(uuid.uuid4()),
-            status=JobStatus.pending,
-            output_name=output_name,
-        )
+__all__ = [
+    "DownloadJob",
+    "JobStatus",
+    "Queues",
+    "get_download_slot_condition",
+    "get_http_client",
+    "get_jobs",
+    "get_queues",
+]
 
 
 def get_jobs(request: Request) -> dict[str, DownloadJob]:
-    return request.app.state.jobs
+    from fanzadl_webui.dependencies import get_app_state
 
-
-type Queues = dict[str, list[asyncio.Queue[DownloadJob | None]]]
+    return get_app_state(request).jobs
 
 
 def get_queues(request: Request) -> Queues:
-    return request.app.state.queues
+    from fanzadl_webui.dependencies import get_app_state
+
+    return get_app_state(request).queues
 
 
 def get_http_client(request: Request) -> httpx.AsyncClient:
-    return request.app.state.http_client
+    from fanzadl_webui.dependencies import get_app_state
+
+    return get_app_state(request).http_client
 
 
 def get_download_slot_condition(request: Request) -> asyncio.Condition:
-    return request.app.state.download_slot_condition
+    from fanzadl_webui.dependencies import get_app_state
+
+    return get_app_state(request).download_slot_condition

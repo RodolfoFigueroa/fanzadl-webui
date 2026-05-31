@@ -28,7 +28,8 @@ async def do_library_refresh(app: FastAPI) -> None:
         app: The FastAPI application instance whose state holds the manager
             and other shared resources.
     """
-    manager = app.state.manager
+    state = app.state.app_state
+    manager = state.manager
     if manager is None:
         logger.warning("Scheduled library refresh skipped: no active session")
         return
@@ -40,9 +41,9 @@ async def do_library_refresh(app: FastAPI) -> None:
         logger.exception("Scheduled library refresh: update_library failed")
         return
 
-    app.state.stream_cache = {}
+    state.stream_cache = {}
     await asyncio.to_thread(purge_stale, manager, IMAGE_CACHE_DIR)
-    await rescan_and_store(app.state)
+    await rescan_and_store(state)
 
     async def _warm_and_save() -> None:
         new_ids: set[int] | None = None
@@ -60,7 +61,7 @@ async def do_library_refresh(app: FastAPI) -> None:
             manager._ids_restored_from_cache = set()  # noqa: SLF001
 
     await asyncio.gather(
-        precache_all(manager, app.state.http_client, IMAGE_CACHE_DIR),
+        precache_all(manager, state.http_client, IMAGE_CACHE_DIR),
         _warm_and_save(),
     )
     logger.info("Scheduled library refresh complete")
@@ -73,7 +74,7 @@ def schedule_library_refresh(app: FastAPI, cron_expr: str) -> None:
         app: The FastAPI application instance.
         cron_expr: A standard 5-field cron expression (e.g. ``"0 12 * * 1"``).
     """
-    scheduler: AsyncIOScheduler = app.state.scheduler
+    scheduler: AsyncIOScheduler = app.state.app_state.scheduler
     if scheduler.get_job(_JOB_ID) is not None:
         scheduler.remove_job(_JOB_ID)
     trigger = CronTrigger.from_crontab(cron_expr)
@@ -93,7 +94,7 @@ def unschedule_library_refresh(app: FastAPI) -> None:
     Args:
         app: The FastAPI application instance.
     """
-    scheduler: AsyncIOScheduler = app.state.scheduler
+    scheduler: AsyncIOScheduler = app.state.app_state.scheduler
     if scheduler.get_job(_JOB_ID) is not None:
         scheduler.remove_job(_JOB_ID)
         logger.info("Library refresh schedule removed")

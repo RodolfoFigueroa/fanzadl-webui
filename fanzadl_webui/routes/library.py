@@ -7,15 +7,16 @@ from fanzadl.models.video import (
     VideoLibraryItemContentsModel,
     VRLibraryItemContentsModel,
 )
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from fanzadl_webui.dependencies import LIBRARY_DB_PATH, get_manager
+from fanzadl_webui.dependencies import LIBRARY_DB_PATH, get_app_state, get_manager
 from fanzadl_webui.library_db import (
     delete_unavailable_item,
     get_unavailable_items,
     mark_item_unavailable,
 )
+from fanzadl_webui.state import AppState
 
 LibraryItem = VideoLibraryItemContentsModel | VRLibraryItemContentsModel
 
@@ -126,19 +127,19 @@ def delete_expired_item(
 
 @router.get("/download-counts/")
 def get_download_counts(
-    request: Request,
+    app_state: Annotated[AppState, Depends(get_app_state)],
     manager: Annotated[FanzaDLManager, Depends(get_manager)],  # noqa: ARG001
 ) -> dict[str, int]:
     """Return the number of downloaded parts for each library item.
 
     Args:
-        request: Incoming FastAPI request providing app state.
+        app_state: Injected application state providing download counts.
         manager: Injected manager (used only to enforce authentication).
 
     Returns:
         A dict mapping ``content_id`` to the count of downloaded ``.mp4`` files.
     """
-    return request.app.state.download_counts
+    return app_state.download_counts
 
 
 @router.get("/")

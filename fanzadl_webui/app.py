@@ -37,6 +37,7 @@ from fanzadl_webui.routes import (
     url,
 )
 from fanzadl_webui.scheduler import schedule_library_refresh
+from fanzadl_webui.state import AppState
 from fanzadl_webui.token_store import delete_tokens, load_tokens, save_tokens
 
 logger = logging.getLogger(__name__)
@@ -94,28 +95,23 @@ def _init_app_state(
     javstash_api_key: str | None,
     scheduler: AsyncIOScheduler,
 ) -> None:
-    app.state.http_client = client
-    app.state.manager = None
-    app.state.jobs: dict = {}
-    app.state.queues: dict = {}
-    app.state.max_concurrent_downloads: int = config.max_concurrent_downloads
-    app.state.log_level: str = config.log_level
-    app.state.download_thread_count: int = config.download_thread_count
-    app.state.single_part_filename_template: str = config.single_part_filename_template
-    app.state.multi_part_filename_template: str = config.multi_part_filename_template
-    app.state.library_refresh_enabled: bool = config.library_refresh_enabled
-    app.state.library_refresh_cron: str = config.library_refresh_cron
-    app.state.config_path: Path = CONFIG_PATH
-    app.state.download_slot_condition = asyncio.Condition()
-    app.state.background_tasks: set[asyncio.Task] = set()
-    app.state.login_lock = asyncio.Lock()
-    app.state.stream_cache: dict = {}
-    app.state.download_counts: dict = {}
-    app.state.save_fn = save_fn
-    app.state.save_api_key_fn = save_api_key_fn
-    app.state.javstash_api_key: str | None = javstash_api_key
-    app.state.javstash_enabled: bool = javstash_api_key is not None
-    app.state.scheduler = scheduler
+    app.state.app_state = AppState(
+        http_client=client,
+        manager=None,
+        max_concurrent_downloads=config.max_concurrent_downloads,
+        log_level=config.log_level,
+        download_thread_count=config.download_thread_count,
+        single_part_filename_template=config.single_part_filename_template,
+        multi_part_filename_template=config.multi_part_filename_template,
+        library_refresh_enabled=config.library_refresh_enabled,
+        library_refresh_cron=config.library_refresh_cron,
+        config_path=CONFIG_PATH,
+        save_fn=save_fn,
+        save_api_key_fn=save_api_key_fn,
+        javstash_api_key=javstash_api_key,
+        javstash_enabled=javstash_api_key is not None,
+        scheduler=scheduler,
+    )
 
 
 async def _warm_and_save(manager: PersistingFanzaDLManager) -> None:
@@ -154,16 +150,17 @@ async def _try_restore_session(
             auto_populate_library=False,
         )
         await asyncio.to_thread(manager.update_library)
-        app.state.manager = manager
+        state = app.state.app_state
+        state.manager = manager
         await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
-        await rescan_and_store(app.state)
+        await rescan_and_store(state)
         for coro in (
             images.precache_all(manager, client, IMAGE_CACHE_DIR),
             _warm_and_save(manager),
         ):
             task = asyncio.create_task(coro)
-            app.state.background_tasks.add(task)
-            task.add_done_callback(app.state.background_tasks.discard)
+            state.background_tasks.add(task)
+            task.add_done_callback(state.background_tasks.discard)
         logger.info("Session restored from token store")
     except AuthExpiredError:
         logger.warning("Stored tokens are expired; deleting token store")

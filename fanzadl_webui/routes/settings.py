@@ -1,24 +1,24 @@
 import asyncio
 import logging
-from typing import Literal
+from typing import Annotated
 
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, SecretStr
 
 from fanzadl_webui.api_key_store import delete_api_key
-from fanzadl_webui.config_store import AppConfig, save_config
+from fanzadl_webui.config_store import AppConfig, LogLevel, save_config
 from fanzadl_webui.dependencies import (
     JAVSTASH_KEY_PATH,
     LIBRARY_DB_PATH,
+    get_app_state,
 )
 from fanzadl_webui.library_db import save_library_db
 from fanzadl_webui.manager import warm_all_details
 from fanzadl_webui.scheduler import schedule_library_refresh, unschedule_library_refresh
+from fanzadl_webui.state import AppState
 
 router = APIRouter()
-
-LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
 
 _background_tasks: set[asyncio.Task] = set()
 
@@ -46,45 +46,45 @@ class AppSettingsPatch(BaseModel):
 
 
 @router.get("/settings/")
-def get_settings(request: Request) -> AppSettings:
+def get_settings(app_state: Annotated[AppState, Depends(get_app_state)]) -> AppSettings:
     return AppSettings(
-        max_concurrent_downloads=request.app.state.max_concurrent_downloads,
-        log_level=request.app.state.log_level,
-        download_thread_count=request.app.state.download_thread_count,
-        javstash_enabled=request.app.state.javstash_enabled,
-        single_part_filename_template=request.app.state.single_part_filename_template,
-        multi_part_filename_template=request.app.state.multi_part_filename_template,
-        library_refresh_enabled=request.app.state.library_refresh_enabled,
-        library_refresh_cron=request.app.state.library_refresh_cron,
+        max_concurrent_downloads=app_state.max_concurrent_downloads,
+        log_level=app_state.log_level,
+        download_thread_count=app_state.download_thread_count,
+        javstash_enabled=app_state.javstash_enabled,
+        single_part_filename_template=app_state.single_part_filename_template,
+        multi_part_filename_template=app_state.multi_part_filename_template,
+        library_refresh_enabled=app_state.library_refresh_enabled,
+        library_refresh_cron=app_state.library_refresh_cron,
     )
 
 
 @router.patch("/settings/")
-async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettings:
+async def update_settings(
+    body: AppSettingsPatch,
+    request: Request,
+    app_state: Annotated[AppState, Depends(get_app_state)],
+) -> AppSettings:
     if body.max_concurrent_downloads is not None:
-        request.app.state.max_concurrent_downloads = body.max_concurrent_downloads
-        condition: asyncio.Condition = request.app.state.download_slot_condition
+        app_state.max_concurrent_downloads = body.max_concurrent_downloads
+        condition = app_state.download_slot_condition
         async with condition:
             condition.notify_all()
     if body.log_level is not None:
-        request.app.state.log_level = body.log_level
+        app_state.log_level = body.log_level
         logging.getLogger().setLevel(body.log_level)
     if body.download_thread_count is not None:
-        request.app.state.download_thread_count = body.download_thread_count
+        app_state.download_thread_count = body.download_thread_count
     if body.single_part_filename_template is not None:
-        request.app.state.single_part_filename_template = (
-            body.single_part_filename_template
-        )
+        app_state.single_part_filename_template = body.single_part_filename_template
     if body.multi_part_filename_template is not None:
-        request.app.state.multi_part_filename_template = (
-            body.multi_part_filename_template
-        )
+        app_state.multi_part_filename_template = body.multi_part_filename_template
     if "javstash_api_key" in body.model_fields_set:
-        manager = request.app.state.manager
+        manager = app_state.manager
         if body.javstash_api_key:
-            request.app.state.javstash_api_key = body.javstash_api_key
-            request.app.state.javstash_enabled = True
-            request.app.state.save_api_key_fn(body.javstash_api_key)
+            app_state.javstash_api_key = body.javstash_api_key
+            app_state.javstash_enabled = True
+            app_state.save_api_key_fn(body.javstash_api_key)
             if manager is not None:
                 manager.javstash_api_key = body.javstash_api_key
                 # Propagate the key to every existing item and evict any
@@ -110,8 +110,8 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
                 _background_tasks.add(_task)
                 _task.add_done_callback(_background_tasks.discard)
         else:
-            request.app.state.javstash_api_key = None
-            request.app.state.javstash_enabled = False
+            app_state.javstash_api_key = None
+            app_state.javstash_enabled = False
             delete_api_key(JAVSTASH_KEY_PATH)
             if manager is not None:
                 manager.javstash_api_key = None
@@ -123,35 +123,35 @@ async def update_settings(body: AppSettingsPatch, request: Request) -> AppSettin
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Invalid cron expression: {exc}",
             ) from exc
-        request.app.state.library_refresh_cron = body.library_refresh_cron
+        app_state.library_refresh_cron = body.library_refresh_cron
     if body.library_refresh_enabled is not None:
-        request.app.state.library_refresh_enabled = body.library_refresh_enabled
-    _refresh_enabled = request.app.state.library_refresh_enabled
-    _refresh_cron = request.app.state.library_refresh_cron
+        app_state.library_refresh_enabled = body.library_refresh_enabled
+    _refresh_enabled = app_state.library_refresh_enabled
+    _refresh_cron = app_state.library_refresh_cron
     if _refresh_enabled:
         schedule_library_refresh(request.app, _refresh_cron)
     else:
         unschedule_library_refresh(request.app)
     await asyncio.to_thread(
         save_config,
-        request.app.state.config_path,
+        app_state.config_path,
         AppConfig(
-            max_concurrent_downloads=request.app.state.max_concurrent_downloads,
-            log_level=request.app.state.log_level,
-            download_thread_count=request.app.state.download_thread_count,
-            single_part_filename_template=request.app.state.single_part_filename_template,
-            multi_part_filename_template=request.app.state.multi_part_filename_template,
-            library_refresh_enabled=request.app.state.library_refresh_enabled,
-            library_refresh_cron=request.app.state.library_refresh_cron,
+            max_concurrent_downloads=app_state.max_concurrent_downloads,
+            log_level=app_state.log_level,
+            download_thread_count=app_state.download_thread_count,
+            single_part_filename_template=app_state.single_part_filename_template,
+            multi_part_filename_template=app_state.multi_part_filename_template,
+            library_refresh_enabled=app_state.library_refresh_enabled,
+            library_refresh_cron=app_state.library_refresh_cron,
         ),
     )
     return AppSettings(
-        max_concurrent_downloads=request.app.state.max_concurrent_downloads,
-        log_level=request.app.state.log_level,
-        download_thread_count=request.app.state.download_thread_count,
-        javstash_enabled=request.app.state.javstash_enabled,
-        single_part_filename_template=request.app.state.single_part_filename_template,
-        multi_part_filename_template=request.app.state.multi_part_filename_template,
-        library_refresh_enabled=request.app.state.library_refresh_enabled,
-        library_refresh_cron=request.app.state.library_refresh_cron,
+        max_concurrent_downloads=app_state.max_concurrent_downloads,
+        log_level=app_state.log_level,
+        download_thread_count=app_state.download_thread_count,
+        javstash_enabled=app_state.javstash_enabled,
+        single_part_filename_template=app_state.single_part_filename_template,
+        multi_part_filename_template=app_state.multi_part_filename_template,
+        library_refresh_enabled=app_state.library_refresh_enabled,
+        library_refresh_cron=app_state.library_refresh_cron,
     )

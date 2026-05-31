@@ -5,20 +5,16 @@ from typing import Annotated, Literal
 import httpx
 import m3u8
 from fanzadl import FanzaDLManager
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import (
+    BaseModel,  # noqa: F401 – keep for existing StreamVariant import compatibility
+)
 
-from fanzadl_webui.dependencies import get_manager
+from fanzadl_webui.dependencies import get_app_state, get_manager
 from fanzadl_webui.jobs import get_http_client
+from fanzadl_webui.models import StreamVariant
 from fanzadl_webui.routes._utils import get_quality_obj
-
-
-class StreamVariant(BaseModel):
-    index: int
-    bandwidth: int
-    codecs: str | None
-    uri: str | None = None
-
+from fanzadl_webui.state import AppState
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +23,15 @@ router = APIRouter(prefix="/streams")
 
 @router.get("/")
 async def get_streams(  # noqa: PLR0913
-    request: Request,
     video_id: int,
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
     http_client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
     part: int | None = None,
     quality: Literal["highest"] = "highest",  # noqa: ARG001
 ) -> list[StreamVariant]:
     cache_key = (video_id, part)
-    cached: list[StreamVariant] | None = request.app.state.stream_cache.get(cache_key)
+    cached: list[StreamVariant] | None = app_state.stream_cache.get(cache_key)
     if cached is not None:
         return cached
 
@@ -85,7 +81,7 @@ async def get_streams(  # noqa: PLR0913
     parsed = m3u8.loads(response.text, uri=playlist_url)
 
     if not parsed.is_variant:
-        request.app.state.stream_cache[cache_key] = []
+        app_state.stream_cache[cache_key] = []
         return []
 
     variants = [
@@ -97,5 +93,5 @@ async def get_streams(  # noqa: PLR0913
         )
         for i, p in enumerate(parsed.playlists)
     ]
-    request.app.state.stream_cache[cache_key] = variants
+    app_state.stream_cache[cache_key] = variants
     return variants

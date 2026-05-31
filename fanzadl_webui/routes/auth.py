@@ -1,20 +1,23 @@
 import asyncio
 import logging
+from typing import Annotated
 
 import requests
 from fanzadl.exceptions import MalformedEmailError, WrongCredentialsError
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from fanzadl_webui.dependencies import (
     IMAGE_CACHE_DIR,
     LIBRARY_DB_PATH,
     TOKEN_STORE_PATH,
+    get_app_state,
 )
 from fanzadl_webui.library_db import delete_all, save_library_db
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes import images
 from fanzadl_webui.routes.download import cancel_active_jobs
+from fanzadl_webui.state import AppState
 from fanzadl_webui.token_store import delete_tokens
 
 logger = logging.getLogger(__name__)
@@ -28,14 +31,19 @@ class LoginRequest(BaseModel):
 
 
 @router.get("/status")
-def auth_status(request: Request) -> dict[str, bool]:
-    return {"authenticated": request.app.state.manager is not None}
+def auth_status(
+    app_state: Annotated[AppState, Depends(get_app_state)],
+) -> dict[str, bool]:
+    return {"authenticated": app_state.manager is not None}
 
 
 @router.post("/login")
-async def login(body: LoginRequest, request: Request) -> dict[str, str]:
-    async with request.app.state.login_lock:
-        if request.app.state.manager is not None:
+async def login(
+    body: LoginRequest,
+    app_state: Annotated[AppState, Depends(get_app_state)],
+) -> dict[str, str]:
+    async with app_state.login_lock:
+        if app_state.manager is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Already logged in",
@@ -46,8 +54,8 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
                 PersistingFanzaDLManager,
                 email=body.email,
                 password=body.password,
-                javstash_api_key=request.app.state.javstash_api_key,
-                save_fn=request.app.state.save_fn,
+                javstash_api_key=app_state.javstash_api_key,
+                save_fn=app_state.save_fn,
                 library_db_path=LIBRARY_DB_PATH,
                 auto_populate_library=False,
             )
@@ -74,8 +82,8 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
                 detail="Authentication failed. Please try again.",
             ) from exc
 
-        request.app.state.manager = manager
-        request.app.state.save_fn(manager.user_id, manager.refresh_token)
+        app_state.manager = manager
+        app_state.save_fn(manager.user_id, manager.refresh_token)
 
     await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
 
@@ -88,25 +96,27 @@ async def login(body: LoginRequest, request: Request) -> dict[str, str]:
         manager._ids_restored_from_cache = set()  # noqa: SLF001
 
     for coro in (
-        images.precache_all(manager, request.app.state.http_client, IMAGE_CACHE_DIR),
+        images.precache_all(manager, app_state.http_client, IMAGE_CACHE_DIR),
         _warm_and_save(),
     ):
         task = asyncio.create_task(coro)
-        request.app.state.background_tasks.add(task)
-        task.add_done_callback(request.app.state.background_tasks.discard)
+        app_state.background_tasks.add(task)
+        task.add_done_callback(app_state.background_tasks.discard)
 
     return {"status": "ok"}
 
 
 @router.post("/logout")
-async def logout(request: Request) -> dict[str, str]:
-    for task in list(request.app.state.background_tasks):
+async def logout(
+    app_state: Annotated[AppState, Depends(get_app_state)],
+) -> dict[str, str]:
+    for task in list(app_state.background_tasks):
         task.cancel()
-    request.app.state.background_tasks.clear()
+    app_state.background_tasks.clear()
 
-    jobs = request.app.state.jobs
-    queues = request.app.state.queues
-    condition = request.app.state.download_slot_condition
+    jobs = app_state.jobs
+    queues = app_state.queues
+    condition = app_state.download_slot_condition
 
     await cancel_active_jobs(jobs, queues, condition)
 
@@ -115,6 +125,6 @@ async def logout(request: Request) -> dict[str, str]:
 
     delete_tokens(TOKEN_STORE_PATH)
     delete_all(LIBRARY_DB_PATH)
-    request.app.state.manager = None
+    app_state.manager = None
 
     return {"status": "ok"}

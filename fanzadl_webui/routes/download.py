@@ -8,12 +8,11 @@ from typing import Annotated, Literal
 
 import m3u8
 from fanzadl.constants import USER_AGENT
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
-from starlette.datastructures import State
 
-from fanzadl_webui.dependencies import DOWNLOAD_DIR
+from fanzadl_webui.dependencies import DOWNLOAD_DIR, get_app_state
 from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.jobs import (
     DownloadJob,
@@ -23,6 +22,7 @@ from fanzadl_webui.jobs import (
     get_jobs,
     get_queues,
 )
+from fanzadl_webui.state import AppState
 
 router = APIRouter()
 _background_tasks: set[asyncio.Task] = set()
@@ -38,7 +38,7 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mK]")
 class _ConcurrencyContext:
     jobs: dict[str, DownloadJob]
     condition: asyncio.Condition
-    app_state: State
+    app_state: AppState
 
 
 class DownloadRequest(BaseModel):
@@ -134,7 +134,7 @@ async def _resolve_media_url(
     video_id: int,
     part: int,
     stream_index: int,
-    app_state: State,
+    app_state: AppState,
 ) -> str:
     """Resolve the direct media URL for a video part and stream index.
 
@@ -151,7 +151,11 @@ async def _resolve_media_url(
         ValueError: If the video or a downloadable quality is not found.
         Exception: On HTTP or m3u8 parsing errors.
     """
-    item = app_state.manager.library.get(video_id)
+    manager = app_state.manager
+    if manager is None:
+        msg = "No active session"
+        raise ValueError(msg)
+    item = manager.library.get(video_id)
     if item is None:
         msg = f"Video {video_id} not found in library"
         raise ValueError(msg)
@@ -392,11 +396,11 @@ def check_filename(name: str = Query(..., min_length=1)) -> FilenameCheckRespons
 
 @router.post("/download/")
 async def start_download(
-    request: Request,
     body: DownloadRequest,
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],
     condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
 ) -> dict[str, str]:
     """Create a download job and dispatch it as a background task.
 
@@ -436,7 +440,7 @@ async def start_download(
     concurrency = _ConcurrencyContext(
         jobs=jobs,
         condition=condition,
-        app_state=request.app.state,
+        app_state=app_state,
     )
     task = asyncio.create_task(
         _run_download(
