@@ -1,13 +1,12 @@
 import secrets
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from fanzadl import FanzaDLManager
 from fastapi import Cookie, Header, HTTPException, Request, status
 
-if TYPE_CHECKING:
-    from fanzadl_webui.state import AppState
+from fanzadl_webui.state import AppState
 
 DOWNLOAD_DIR = Path("/download")
 IMAGE_CACHE_DIR = Path("/data/image_cache")
@@ -19,7 +18,7 @@ LOCAL_API_KEY_PATH = Path("/data/local_api_key.enc")
 CONFIG_PATH = Path("/data/config.json")
 
 
-def get_app_state(request: Request) -> "AppState":
+def get_app_state(request: Request) -> AppState:
     return request.app.state.app_state  # type: ignore[no-any-return]
 
 

@@ -199,7 +199,10 @@ export function subscribeLibraryEvents(
             }
         },
         onerror(err) {
+            if (signal?.aborted) return; // intentional abort — don't retry
+            if (err instanceof TypeError) return; // network/navigation cancel — allow retry
             onError?.(err);
+            throw err; // unexpected server error — stop retrying
         },
     });
 }

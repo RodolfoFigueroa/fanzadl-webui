@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onMount } from 'svelte';
+import { onDestroy, onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import {
     deleteExpiredItem,
@@ -11,6 +11,7 @@ import {
     getSettings,
     refreshLibrary,
     subscribeGlobalJobEvents,
+    subscribeLibraryEvents,
 } from '$lib/api';
 import DownloadModal from '$lib/components/DownloadModal.svelte';
 import VideoCard from '$lib/components/VideoCard.svelte';
@@ -26,6 +27,10 @@ let selectedItem = $state<LibraryItem | null>(null);
 let javstashEnabled = $state(false);
 let downloadCounts = $state<Record<string, number>>({});
 let activeDownloadCounts = $state<Record<string, number>>({});
+
+const globalJobsController = new AbortController();
+const libraryController = new AbortController();
+let addedDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 type SortField = 'title' | 'purchase_date' | 'parts' | 'expire' | 'content_id';
 let sortField = $state<SortField>('purchase_date');
@@ -126,14 +131,54 @@ onMount(async () => {
         // settings unavailable; leave javstashEnabled as false
     }
 
-    const abortController = new AbortController();
     subscribeGlobalJobEvents((counts) => {
         activeDownloadCounts = counts;
-    }, abortController.signal);
+    }, globalJobsController.signal);
 
-    return () => {
-        abortController.abort();
-    };
+    subscribeLibraryEvents(
+        (event) => {
+            if (event.type === 'item_added') {
+                if (addedDebounceTimer !== null)
+                    clearTimeout(addedDebounceTimer);
+                addedDebounceTimer = setTimeout(async () => {
+                    addedDebounceTimer = null;
+                    try {
+                        const data = await getLibrary();
+                        library = Object.values(data);
+                    } catch {
+                        // ignore; stale library is acceptable
+                    }
+                }, 300);
+            } else if (
+                event.type === 'item_expired' &&
+                event.mylibrary_id !== null
+            ) {
+                const removed = library.find(
+                    (i) => i.mylibrary_id === event.mylibrary_id,
+                );
+                library = library.filter(
+                    (i) => i.mylibrary_id !== event.mylibrary_id,
+                );
+                if (
+                    removed !== undefined &&
+                    !expiredLibrary.some(
+                        (i) => i.mylibrary_id === removed.mylibrary_id,
+                    )
+                ) {
+                    expiredLibrary = [...expiredLibrary, removed];
+                }
+            }
+            // auto_queued: activeDownloadCounts already kept live via subscribeGlobalJobEvents
+        },
+        undefined,
+        libraryController.signal,
+    );
+});
+
+onDestroy(() => {
+    globalJobsController.abort();
+    libraryController.abort();
+    if (addedDebounceTimer !== null) clearTimeout(addedDebounceTimer);
 });
 </script>
 

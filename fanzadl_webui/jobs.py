@@ -29,13 +29,13 @@ def get_download_slot_condition(request: Request) -> asyncio.Condition:
 
 def get_global_job_queues(
     request: Request,
-) -> "list[asyncio.Queue[dict[str, int] | None]]":
+) -> list[asyncio.Queue[dict[str, int] | None]]:
     return get_app_state(request).global_job_queues
 
 
 def get_job_created_queues(
     request: Request,
-) -> "list[asyncio.Queue[DownloadJob | None]]":
+) -> list[asyncio.Queue[DownloadJob | None]]:
     return get_app_state(request).job_created_queues
 
 
