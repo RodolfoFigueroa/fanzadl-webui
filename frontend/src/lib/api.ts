@@ -257,6 +257,29 @@ export function subscribeGlobalJobEvents(
     });
 }
 
+export function subscribeJobCreatedEvents(
+    onMessage: (job: DownloadJob) => void,
+    signal?: AbortSignal,
+): void {
+    void fetchEventSource('/api/jobs/created-events', {
+        signal,
+        credentials: 'include',
+        onmessage(event) {
+            try {
+                const job = JSON.parse(event.data) as DownloadJob;
+                onMessage(job);
+            } catch {
+                // ignore malformed events
+            }
+        },
+        onerror(err) {
+            if (signal?.aborted) return; // intentional abort — don't retry
+            if (err instanceof TypeError) return; // network/navigation cancel — allow retry
+            throw err; // unexpected server error — stop retrying
+        },
+    });
+}
+
 export interface ToastNotification {
     message: string;
     level: string;

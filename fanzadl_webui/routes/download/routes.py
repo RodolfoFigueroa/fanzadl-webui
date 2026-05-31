@@ -15,6 +15,7 @@ from fanzadl_webui.jobs import (
     Queues,
     get_download_slot_condition,
     get_global_job_queues,
+    get_job_created_queues,
     get_jobs,
     get_queues,
 )
@@ -26,6 +27,7 @@ from fanzadl_webui.routes.download.runner import (
     _processes,
     _publish,
     _publish_global,
+    _publish_job_created,
     _run_download,
     cancel_active_jobs,
 )
@@ -77,6 +79,7 @@ async def start_download(  # noqa: PLR0913
     condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
     app_state: Annotated[AppState, Depends(get_app_state)],
     global_job_queues: Annotated[list, Depends(get_global_job_queues)],
+    job_created_queues: Annotated[list, Depends(get_job_created_queues)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> dict[str, str]:
     """Create a download job and dispatch it as a background task.
@@ -114,6 +117,7 @@ async def start_download(  # noqa: PLR0913
     job = DownloadJob.create(output_name=body.output_name, content_id=body.content_id)
     jobs[job.job_id] = job
     queues[job.job_id] = []
+    _publish_job_created(job, job_created_queues)
     concurrency = _ConcurrencyContext(
         jobs=jobs,
         condition=condition,
@@ -205,6 +209,38 @@ async def global_job_events(
         finally:
             if q in global_job_queues:
                 global_job_queues.remove(q)
+
+    return EventSourceResponse(event_generator())
+
+
+@router.get("/jobs/created-events")
+async def job_created_events(
+    job_created_queues: Annotated[list, Depends(get_job_created_queues)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> EventSourceResponse:
+    """Stream SSE events whenever a new download job is registered.
+
+    Sends a DownloadJob JSON snapshot each time a job is created, whether
+    triggered by a user request or by auto-enqueue. Cleans up the subscriber
+    queue when the client disconnects.
+
+    Returns:
+        An EventSourceResponse that streams serialized DownloadJob snapshots.
+    """
+
+    async def event_generator() -> AsyncGenerator[dict[str, str]]:
+        """Yield new job snapshots until the client disconnects."""
+        q: asyncio.Queue[DownloadJob | None] = asyncio.Queue(maxsize=50)
+        job_created_queues.append(q)
+        try:
+            while True:
+                job = await q.get()
+                if job is None:
+                    break
+                yield {"data": job.model_dump_json()}
+        finally:
+            if q in job_created_queues:
+                job_created_queues.remove(q)
 
     return EventSourceResponse(event_generator())
 

@@ -95,6 +95,27 @@ def _publish_global(
             q.put_nowait(counts)
 
 
+def _publish_job_created(
+    job: DownloadJob,
+    job_created_queues: list[asyncio.Queue["DownloadJob | None"]] | None,
+) -> None:
+    """Broadcast a newly created job snapshot to all created-events subscribers.
+
+    Args:
+        job: The newly created job to broadcast.
+        job_created_queues: List of subscriber queues to broadcast to.
+    """
+    if job_created_queues is None:
+        return
+    snapshot = job.model_copy()
+    for q in job_created_queues:
+        if q.full():
+            with contextlib.suppress(asyncio.QueueEmpty):
+                q.get_nowait()
+        with contextlib.suppress(asyncio.QueueFull):
+            q.put_nowait(snapshot)
+
+
 def _publish(job: DownloadJob, queues: Queues) -> None:
     """Enqueue a snapshot of job to all SSE subscriber queues for that job.
 

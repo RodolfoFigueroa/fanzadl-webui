@@ -54,6 +54,9 @@ class AppState:
     global_job_queues: list[asyncio.Queue[dict[str, int] | None]] = field(
         default_factory=list
     )
+    job_created_queues: list[asyncio.Queue[DownloadJob | None]] = field(
+        default_factory=list
+    )
     library_event_queues: list[asyncio.Queue[tuple[int, str] | None]] = field(
         default_factory=list
     )

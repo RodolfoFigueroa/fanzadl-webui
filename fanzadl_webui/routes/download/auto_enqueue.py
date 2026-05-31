@@ -10,7 +10,11 @@ from fanzadl_webui.events import publish_library_event
 from fanzadl_webui.filename import render_template
 from fanzadl_webui.jobs import DownloadJob, JobStatus
 from fanzadl_webui.models import LibraryEvent
-from fanzadl_webui.routes.download.runner import _ConcurrencyContext, _run_download
+from fanzadl_webui.routes.download.runner import (
+    _ConcurrencyContext,
+    _publish_job_created,
+    _run_download,
+)
 from fanzadl_webui.state import AppState
 
 logger = logging.getLogger(__name__)
@@ -98,6 +102,7 @@ async def _enqueue_part(
     job = DownloadJob.create(output_name=output_name)
     app_state.jobs[job.job_id] = job
     app_state.queues[job.job_id] = []
+    _publish_job_created(job, app_state.job_created_queues)
     concurrency = _ConcurrencyContext(
         jobs=app_state.jobs,
         condition=app_state.download_slot_condition,

@@ -6,6 +6,7 @@ import {
     getJobs,
     stopAllJobs,
     stopJob,
+    subscribeJobCreatedEvents,
     subscribeJobEvents,
 } from '$lib/api';
 import JobGroup from '$lib/components/JobGroup.svelte';
@@ -19,6 +20,7 @@ let loading = $state(_cached === null);
 let error = $state('');
 
 const controllers = new Map<string, AbortController>();
+const createdController = new AbortController();
 
 function openSubscription(job: DownloadJob) {
     if (job.status === 'done' || job.status === 'error') return;
@@ -48,6 +50,10 @@ function openSubscription(job: DownloadJob) {
 }
 
 onMount(async () => {
+    subscribeJobCreatedEvents((newJob) => {
+        jobs = { ...jobs, [newJob.job_id]: newJob };
+        openSubscription(newJob);
+    }, createdController.signal);
     try {
         const existing = await getJobs();
         const map: Record<string, DownloadJob> = {};
@@ -66,6 +72,7 @@ onMount(async () => {
 });
 
 onDestroy(() => {
+    createdController.abort();
     for (const controller of controllers.values()) {
         controller.abort();
     }
