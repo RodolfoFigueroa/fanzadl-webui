@@ -14,8 +14,6 @@ from fanzadl_webui.state import AppState
 
 router = APIRouter()
 
-_background_tasks: set[asyncio.Task] = set()
-
 
 class HistoryItem(BaseModel):
     id: int

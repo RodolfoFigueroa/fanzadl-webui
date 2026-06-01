@@ -166,9 +166,8 @@ async def logout(
 
     jobs = app_state.jobs
     queues = app_state.queues
-    condition = app_state.download_slot_condition
 
-    await cancel_active_jobs(jobs, queues, condition)
+    await cancel_active_jobs(app_state)
 
     jobs.clear()
     queues.clear()

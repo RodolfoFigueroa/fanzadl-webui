@@ -8,7 +8,6 @@ from fanzadl import FanzaDLManager
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from fanzadl_webui.dependencies import get_app_state, get_manager, require_api_key
-from fanzadl_webui.jobs import get_http_client
 from fanzadl_webui.models import StreamVariant
 from fanzadl_webui.routes._utils import get_quality_obj
 from fanzadl_webui.state import AppState
@@ -19,10 +18,9 @@ router = APIRouter(prefix="/streams")
 
 
 @router.get("/")
-async def get_streams(  # noqa: PLR0913
+async def get_streams(
     video_id: int,
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
-    http_client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
     app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
     part: int | None = None,
@@ -39,7 +37,9 @@ async def get_streams(  # noqa: PLR0913
     )
     for attempt in range(2):
         try:
-            response = await http_client.get(playlist_url, follow_redirects=True)
+            response = await app_state.http_client.get(
+                playlist_url, follow_redirects=True
+            )
             response.raise_for_status()
             break
         except httpx.HTTPStatusError as e:

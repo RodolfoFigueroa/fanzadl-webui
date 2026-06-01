@@ -2,22 +2,21 @@ import asyncio
 import contextlib
 import logging
 import re
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import m3u8
 from fanzadl.constants import USER_AGENT
 
 from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.history_db import insert_history
-from fanzadl_webui.jobs import DownloadJob, JobStatus, Queues
+from fanzadl_webui.models import DownloadJob, JobStatus, Queues
 from fanzadl_webui.routes._utils import _fire_background
 from fanzadl_webui.state import AppState
 from fanzadl_webui.webhook import fire_webhook
 
 logger = logging.getLogger(__name__)
 
-_background_tasks: set[asyncio.Task] = set()
 _processes: dict[str, asyncio.subprocess.Process] = {}
 
 _PCT_RE = re.compile(r"(\d+)/(\d+)\s+([\d.]+)%")
@@ -35,12 +34,13 @@ _SIZE_MULTIPLIERS: dict[str, int] = {
 }
 
 
-@dataclass
-class _ConcurrencyContext:
-    jobs: dict[str, DownloadJob]
-    condition: asyncio.Condition
-    app_state: AppState
-    global_job_queues: list[asyncio.Queue[dict[str, int] | None]] | None = None
+def _try_put(q: asyncio.Queue[Any], item: Any) -> None:
+    """Put item onto q, evicting the oldest entry if the queue is full."""
+    if q.full():
+        with contextlib.suppress(asyncio.QueueEmpty):
+            q.get_nowait()
+    with contextlib.suppress(asyncio.QueueFull):
+        q.put_nowait(item)
 
 
 def _parse_size_str(s: str) -> int | None:
@@ -91,11 +91,7 @@ def _publish_global(
     if global_job_queues is None:
         return
     for q in global_job_queues:
-        if q.full():
-            with contextlib.suppress(asyncio.QueueEmpty):
-                q.get_nowait()
-        with contextlib.suppress(asyncio.QueueFull):
-            q.put_nowait(counts)
+        _try_put(q, counts)
 
 
 def _publish_job_created(
@@ -112,11 +108,36 @@ def _publish_job_created(
         return
     snapshot = job.model_copy()
     for q in job_created_queues:
-        if q.full():
-            with contextlib.suppress(asyncio.QueueEmpty):
-                q.get_nowait()
-        with contextlib.suppress(asyncio.QueueFull):
-            q.put_nowait(snapshot)
+        _try_put(q, snapshot)
+
+
+def register_job(job: DownloadJob, app_state: AppState) -> None:
+    """Register a new job and notify all SSE and webhook subscribers.
+
+    Inserts the job into the job registry and queues, publishes a job-created
+    SSE event, updates global active counts, and fires the job_created webhook.
+
+    Args:
+        job: The newly created job to register.
+        app_state: Application state holding the job registry and subscriber lists.
+    """
+    app_state.jobs[job.job_id] = job
+    app_state.queues[job.job_id] = []
+    _publish_job_created(job, app_state.job_created_queues)
+    _publish_global(_compute_active_counts(app_state.jobs), app_state.global_job_queues)
+    _fire_background(
+        app_state.background_tasks,
+        fire_webhook(
+            app_state,
+            "job_created",
+            {
+                "job_id": job.job_id,
+                "output_name": job.output_name,
+                "content_id": job.content_id,
+                "source": job.source,
+            },
+        ),
+    )
 
 
 def _publish(job: DownloadJob, queues: Queues) -> None:
@@ -128,11 +149,7 @@ def _publish(job: DownloadJob, queues: Queues) -> None:
     """
     snapshot = job.model_copy()
     for q in queues.get(job.job_id, []):
-        if q.full():
-            with contextlib.suppress(asyncio.QueueEmpty):
-                q.get_nowait()
-        with contextlib.suppress(asyncio.QueueFull):
-            q.put_nowait(snapshot)
+        _try_put(q, snapshot)
 
 
 def _close_streams(job_id: str, queues: Queues) -> None:
@@ -145,19 +162,44 @@ def _close_streams(job_id: str, queues: Queues) -> None:
         queues: Mapping of job IDs to lists of subscriber queues.
     """
     for q in queues.get(job_id, []):
-        if q.full():
-            with contextlib.suppress(asyncio.QueueEmpty):
-                q.get_nowait()
-        with contextlib.suppress(asyncio.QueueFull):
-            q.put_nowait(None)
+        _try_put(q, None)
 
 
-async def cancel_active_jobs(
-    jobs: dict[str, DownloadJob],
-    queues: Queues,
-    condition: asyncio.Condition,
-    app_state: AppState | None = None,
-) -> None:
+def _cancel_job(job: DownloadJob, queues: Queues, app_state: AppState | None) -> None:
+    """Mark a single job cancelled, terminate its process, and notify subscribers.
+
+    Terminates the subprocess if one is running, publishes the cancelled state to
+    SSE subscribers, closes streams, and fires the job_cancelled webhook.
+    The caller is responsible for notifying the concurrency condition afterwards.
+
+    Args:
+        job: The job to cancel.
+        queues: SSE subscriber queues, keyed by job ID.
+        app_state: Application state for firing the webhook. If None, the webhook
+            is skipped.
+    """
+    job.status = JobStatus.cancelled
+    proc = _processes.get(job.job_id)
+    if proc is not None:
+        proc.terminate()
+    _publish(job, queues)
+    _close_streams(job.job_id, queues)
+    if app_state is not None:
+        _fire_background(
+            app_state.background_tasks,
+            fire_webhook(
+                app_state,
+                "job_cancelled",
+                {
+                    "job_id": job.job_id,
+                    "output_name": job.output_name,
+                    "content_id": job.content_id,
+                },
+            ),
+        )
+
+
+async def cancel_active_jobs(app_state: AppState) -> None:
     """Cancel all running or pending jobs and notify the concurrency condition.
 
     For each running or pending job: marks it cancelled, terminates its subprocess
@@ -165,37 +207,16 @@ async def cancel_active_jobs(
     streams. Then notifies all waiters on the condition variable.
 
     Args:
-        jobs: Mapping of job IDs to active download jobs.
-        queues: SSE subscriber queues, keyed by job ID.
-        condition: Concurrency condition to notify after cancellation.
-        app_state: Optional application state for firing webhook events.
+        app_state: Application state providing jobs, queues, and the condition.
     """
-    for job in list(jobs.values()):
+    for job in list(app_state.jobs.values()):
         if job.status in (JobStatus.running, JobStatus.pending):
-            job.status = JobStatus.cancelled
-            proc = _processes.get(job.job_id)
-            if proc is not None:
-                proc.terminate()
-            _publish(job, queues)
-            _close_streams(job.job_id, queues)
-            if app_state is not None:
-                _fire_background(
-                    app_state.background_tasks,
-                    fire_webhook(
-                        app_state,
-                        "job_cancelled",
-                        {
-                            "job_id": job.job_id,
-                            "output_name": job.output_name,
-                            "content_id": job.content_id,
-                        },
-                    ),
-                )
-    async with condition:
-        condition.notify_all()
+            _cancel_job(job, app_state.queues, app_state)
+    async with app_state.download_slot_condition:
+        app_state.download_slot_condition.notify_all()
 
 
-async def _acquire_slot(job: DownloadJob, ctx: _ConcurrencyContext) -> bool:
+async def _acquire_slot(job: DownloadJob, app_state: AppState) -> bool:
     """Wait for a concurrency slot and transition the job to running.
 
     Blocks until the number of currently running jobs falls below the configured
@@ -204,20 +225,20 @@ async def _acquire_slot(job: DownloadJob, ctx: _ConcurrencyContext) -> bool:
 
     Args:
         job: The pending job waiting to acquire a download slot.
-        ctx: Concurrency context providing the condition variable, job registry,
-            and app state with the ``max_concurrent_downloads`` setting.
+        app_state: Application state providing the condition variable, job
+            registry, and ``max_concurrent_downloads`` setting.
 
     Returns:
         True if a slot was acquired and the job is now running.
         False if the job was cancelled while waiting.
     """
-    async with ctx.condition:
+    async with app_state.download_slot_condition:
         while (
-            sum(1 for j in ctx.jobs.values() if j.status == JobStatus.running)
-            >= ctx.app_state.max_concurrent_downloads
+            sum(1 for j in app_state.jobs.values() if j.status == JobStatus.running)
+            >= app_state.max_concurrent_downloads
             and job.status != JobStatus.cancelled
         ):
-            await ctx.condition.wait()
+            await app_state.download_slot_condition.wait()
         if job.status == JobStatus.cancelled:
             return False
         job.status = JobStatus.running
@@ -377,30 +398,6 @@ async def _stream_output(
     return output_lines
 
 
-def _finalize_and_broadcast(  # noqa: PLR0913
-    job: DownloadJob,
-    returncode: int | None,
-    output_lines: list[str],
-    save_dir: str,
-    save_name: str,
-    queues: Queues,
-    ctx: "_ConcurrencyContext",
-) -> None:
-    """Finalize job and broadcast updated active counts to global subscribers.
-
-    Args:
-        job: Job to finalize.
-        returncode: Process exit code.
-        output_lines: All stdout lines collected during the download.
-        save_dir: Directory where the output file was written.
-        save_name: Output filename stem (without extension).
-        queues: SSE subscriber queues for the job.
-        ctx: Concurrency context for broadcasting global counts.
-    """
-    _finalize_job(job, returncode, output_lines, save_dir, save_name, queues)
-    _publish_global(_compute_active_counts(ctx.jobs), ctx.global_job_queues)
-
-
 def _finalize_job(  # noqa: PLR0913
     job: DownloadJob,
     returncode: int | None,
@@ -436,7 +433,7 @@ def _fail_job(
     job: DownloadJob,
     error_msg: str,
     queues: Queues,
-    concurrency: _ConcurrencyContext,
+    app_state: AppState,
 ) -> None:
     """Set a job to error state and schedule side effects as background tasks.
 
@@ -447,16 +444,13 @@ def _fail_job(
         job: The job to mark as failed.
         error_msg: Error message to set on the job.
         queues: SSE subscriber queues for the job.
-        concurrency: Concurrency context providing the job registry and app state.
+        app_state: Application state providing the job registry and background tasks.
     """
     job.error = error_msg
     job.status = JobStatus.error
     _publish(job, queues)
-    _publish_global(
-        _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
-    )
+    _publish_global(_compute_active_counts(app_state.jobs), app_state.global_job_queues)
     _close_streams(job.job_id, queues)
-    app_state = concurrency.app_state
     _fire_background(
         app_state.background_tasks,
         fire_webhook(
@@ -490,7 +484,7 @@ def _fail_job(
 
 def _handle_terminal_job(
     job: DownloadJob,
-    concurrency: _ConcurrencyContext,
+    app_state: AppState,
 ) -> None:
     """Schedule side effects for a job that reached a terminal state after process exit.
 
@@ -498,11 +492,10 @@ def _handle_terminal_job(
 
     Args:
         job: The finalized job.
-        concurrency: Concurrency context providing the app state.
+        app_state: Application state providing background tasks and history path.
     """
-    app_state = concurrency.app_state
     if job.status == JobStatus.done:
-        _fire_background(_background_tasks, rescan_and_store(app_state))
+        _fire_background(app_state.background_tasks, rescan_and_store(app_state))
         _fire_background(
             app_state.background_tasks,
             fire_webhook(
@@ -558,7 +551,7 @@ async def _run_download(  # noqa: PLR0913
     save_dir: str,
     save_name: str,
     queues: Queues,
-    concurrency: _ConcurrencyContext,
+    app_state: AppState,
 ) -> None:
     """Orchestrate a full download: acquire slot, resolve URL, run process, finalize.
 
@@ -575,27 +568,24 @@ async def _run_download(  # noqa: PLR0913
         save_dir: Directory path where the output file will be written.
         save_name: Output filename stem (without extension).
         queues: SSE subscriber queues, keyed by job ID.
-        concurrency: Context providing the condition variable, job registry,
-            and app state.
+        app_state: Application state providing all runtime context.
     """
-    if not await _acquire_slot(job, concurrency):
+    if not await _acquire_slot(job, app_state):
         _publish_global(
-            _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
+            _compute_active_counts(app_state.jobs), app_state.global_job_queues
         )
         return
 
-    _publish_global(
-        _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
-    )
+    _publish_global(_compute_active_counts(app_state.jobs), app_state.global_job_queues)
 
     try:
         try:
             media_url, bandwidth_mbps = await _resolve_media_url(
-                video_id, part, stream_index, concurrency.app_state
+                video_id, part, stream_index, app_state
             )
             job.bandwidth_mbps = bandwidth_mbps
         except Exception as exc:  # noqa: BLE001
-            _fail_job(job, f"Failed to resolve media URL: {exc}", queues, concurrency)
+            _fail_job(job, f"Failed to resolve media URL: {exc}", queues, app_state)
             return
 
         _publish(job, queues)
@@ -604,17 +594,57 @@ async def _run_download(  # noqa: PLR0913
                 media_url,
                 save_dir,
                 save_name,
-                concurrency.app_state.download_thread_count,
+                app_state.download_thread_count,
             )
             output_lines = await _stream_output(proc, job, queues)
         except Exception as exc:  # noqa: BLE001
-            _fail_job(job, str(exc), queues, concurrency)
+            _fail_job(job, str(exc), queues, app_state)
             return
 
-        _finalize_and_broadcast(
-            job, proc.returncode, output_lines, save_dir, save_name, queues, concurrency
+        _finalize_job(job, proc.returncode, output_lines, save_dir, save_name, queues)
+        _publish_global(
+            _compute_active_counts(app_state.jobs), app_state.global_job_queues
         )
-        _handle_terminal_job(job, concurrency)
+        _handle_terminal_job(job, app_state)
     finally:
-        async with concurrency.condition:
-            concurrency.condition.notify_all()
+        async with app_state.download_slot_condition:
+            app_state.download_slot_condition.notify_all()
+
+
+def dispatch_download(  # noqa: PLR0913
+    job: DownloadJob,
+    video_id: int,
+    part: int,
+    stream_index: int,
+    save_dir: str,
+    save_name: str,
+    app_state: AppState,
+) -> None:
+    """Schedule a download job as a background task.
+
+    Fires ``_run_download`` via ``_fire_background`` using
+    ``app_state.background_tasks``.  Callers should have already registered
+    the job with :func:`register_job` before calling this.
+
+    Args:
+        job: The registered download job to execute.
+        video_id: Library video identifier to look up.
+        part: Part index to resolve.
+        stream_index: Index into the m3u8 playlist variants.
+        save_dir: Directory path where the output file will be written.
+        save_name: Output filename stem (without extension).
+        app_state: Application state providing all runtime context.
+    """
+    _fire_background(
+        app_state.background_tasks,
+        _run_download(
+            job,
+            video_id,
+            part,
+            stream_index,
+            save_dir,
+            save_name,
+            app_state.queues,
+            app_state,
+        ),
+    )
