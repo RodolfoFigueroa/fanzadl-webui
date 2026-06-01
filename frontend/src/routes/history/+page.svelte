@@ -141,7 +141,7 @@ onMount(() => {
 	<div class="flex flex-wrap items-center justify-between gap-3">
 		<h1 class="text-xl font-semibold text-th-text">Download History</h1>
 
-		<div class="flex items-center gap-2">
+		<div class="flex items-center gap-2 flex-wrap">
 			{#if deleteError}
 				<span class="text-xs text-red-500">{deleteError}</span>
 			{/if}
@@ -229,12 +229,12 @@ onMount(() => {
 						</th>
 						<th class="px-3 py-2.5 text-left">Status</th>
 						<th class="px-3 py-2.5 text-left">File</th>
-						<th class="px-3 py-2.5 text-left">Content ID</th>
-						<th class="px-3 py-2.5 text-left">Source</th>
-						<th class="px-3 py-2.5 text-right">Bandwidth</th>
+						<th class="px-3 py-2.5 text-left hidden sm:table-cell">Content ID</th>
+						<th class="px-3 py-2.5 text-left hidden sm:table-cell">Source</th>
+						<th class="px-3 py-2.5 text-right hidden sm:table-cell">Bandwidth</th>
 						<th class="px-3 py-2.5 text-right">Size</th>
 						<th class="px-3 py-2.5 text-left">Completed</th>
-						<th class="px-3 py-2.5 text-left">Error</th>
+						<th class="px-3 py-2.5 text-left hidden sm:table-cell">Error</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-th-border">
@@ -263,10 +263,10 @@ onMount(() => {
 							<td class="px-3 py-2 max-w-xs truncate text-th-text font-mono text-xs" title={item.output_name}>
 								{item.output_name}
 							</td>
-							<td class="px-3 py-2 text-th-text-muted font-mono text-xs">
-								{item.content_id ?? '—'}
-							</td>
-							<td class="px-3 py-2">
+						<td class="px-3 py-2 text-th-text-muted font-mono text-xs hidden sm:table-cell">
+							{item.content_id ?? '—'}
+						</td>
+						<td class="px-3 py-2 hidden sm:table-cell">
 								{#if item.source === 'auto'}
 									<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
 										auto
@@ -277,7 +277,7 @@ onMount(() => {
 									</span>
 								{/if}
 							</td>
-							<td class="px-3 py-2 text-right text-th-text-muted tabular-nums">
+						<td class="px-3 py-2 text-right text-th-text-muted tabular-nums hidden sm:table-cell">
 								{item.bandwidth_mbps !== null ? `${item.bandwidth_mbps.toFixed(1)} Mbps` : '—'}
 							</td>
 							<td class="px-3 py-2 text-right text-th-text-muted tabular-nums">
@@ -286,7 +286,7 @@ onMount(() => {
 							<td class="px-3 py-2 text-th-text-muted text-xs whitespace-nowrap">
 								{formatDate(item.completed_at)}
 							</td>
-							<td class="px-3 py-2 max-w-xs">
+						<td class="px-3 py-2 max-w-xs hidden sm:table-cell">
 								{#if item.error}
 									<button
 										onclick={() => toggleError(item.id)}

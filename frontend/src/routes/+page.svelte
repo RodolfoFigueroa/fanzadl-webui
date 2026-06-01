@@ -243,12 +243,12 @@ onDestroy(() => {
 </div>
 
 {#if library.length > 0}
-	<div class="flex items-center gap-2 mb-4">
+	<div class="flex items-center gap-2 mb-4 flex-wrap">
 		<input
 			type="search"
 			bind:value={searchQuery}
 			placeholder="Search…"
-			class="w-40 bg-th-input border border-th-border text-th-text text-sm rounded-lg
+			class="flex-1 min-w-32 bg-th-input border border-th-border text-th-text text-sm rounded-lg
 				py-1.5 px-3 focus:outline-none focus:border-th-border-strong placeholder:text-th-text-dim"
 		/>
 		<select

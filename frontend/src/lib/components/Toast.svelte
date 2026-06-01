@@ -5,7 +5,7 @@ let {
     onDismiss,
 }: { message: string; level?: string; onDismiss: () => void } = $props();
 
-const isError = level === 'ERROR' || level === 'CRITICAL';
+const isError = $derived(level === 'ERROR' || level === 'CRITICAL');
 
 $effect(() => {
     const t = setTimeout(onDismiss, 6000);

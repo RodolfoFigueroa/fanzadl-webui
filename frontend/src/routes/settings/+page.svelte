@@ -284,11 +284,11 @@ let cronResult = $derived.by<CronResult>(() => {
 <div class="w-full max-w-2xl mx-auto mt-6 sm:mt-16">
     <h1 class="text-2xl font-bold mb-6">Settings</h1>
 
-    <div class="flex border-b border-th-border mb-0">
+    <div class="flex border-b border-th-border mb-0 overflow-x-auto scrollbar-none">
         {#each tabs as tab}
             <button
                 onclick={() => (activeTab = tab.id)}
-                class="px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px
+                class="px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap flex-shrink-0
                     {activeTab === tab.id
                         ? 'border-th-border-strong text-th-text'
                         : 'border-transparent text-th-text-muted hover:text-th-text hover:border-th-border'}"

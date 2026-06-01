@@ -249,6 +249,29 @@ const navLinks = [
 					Downloads
 				</a>
 				<a
+					href="/history"
+					class="flex flex-col items-center justify-center gap-1 flex-1 py-2 text-xs transition-colors
+						{page.url.pathname === '/history' ? 'text-th-brand' : 'text-th-text-dim'}"
+					aria-current={page.url.pathname === "/history"
+						? "page"
+						: undefined}
+				>
+					<svg
+						class="w-5 h-5"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+						/>
+					</svg>
+					History
+				</a>
+				<a
 					href="/settings"
 					class="flex flex-col items-center justify-center gap-1 flex-1 py-2 text-xs transition-colors
 						{page.url.pathname === '/settings' ? 'text-th-brand' : 'text-th-text-dim'}"
@@ -281,7 +304,7 @@ const navLinks = [
 	{/if}
 
 	<!-- Error notification toasts -->
-	<div class="fixed bottom-4 right-4 flex flex-col gap-2 z-50 pointer-events-none">
+	<div class="fixed bottom-20 sm:bottom-4 right-4 flex flex-col gap-2 z-50 pointer-events-none">
 		{#each notifications as n (n.id)}
 			<div class="pointer-events-auto" transition:fly={{ x: 24, duration: 200 }}>
 				<Toast message={n.message} level={n.level} onDismiss={() => dismiss(n.id)} />
