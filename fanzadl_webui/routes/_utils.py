@@ -1,3 +1,7 @@
+import asyncio
+from collections.abc import Coroutine
+from typing import Any
+
 from fanzadl import FanzaDLManager
 from fanzadl.models.video.video import VideoQualityModel
 from fanzadl.models.video.vr import VRQualityModel
@@ -33,3 +37,11 @@ def get_quality_obj(
             detail="No downloadable/streamable qualities found for this video",
         )
     return out
+
+
+def _fire_background(
+    tasks: set[asyncio.Task[Any]], coro: Coroutine[object, object, object]
+) -> None:
+    task = asyncio.create_task(coro)
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)

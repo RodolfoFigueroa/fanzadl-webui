@@ -13,13 +13,14 @@ IMAGE_CACHE_DIR = Path("/data/image_cache")
 TOKEN_STORE_PATH = Path("/data/tokens.enc")
 SESSION_STORE_PATH = Path("/data/sessions.enc")
 LIBRARY_DB_PATH = Path("/data/library.db")
+HISTORY_DB_PATH = Path("/data/history.db")
 JAVSTASH_KEY_PATH = Path("/data/javstash_api_key.enc")
 LOCAL_API_KEY_PATH = Path("/data/local_api_key.enc")
 CONFIG_PATH = Path("/data/config.json")
 
 
 def get_app_state(request: Request) -> AppState:
-    return request.app.state.app_state  # type: ignore[no-any-return]
+    return request.app.state.app_state
 
 
 def get_manager(request: Request) -> FanzaDLManager:

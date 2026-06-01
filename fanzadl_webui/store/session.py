@@ -56,14 +56,14 @@ def load_sessions(path: Path, key: bytes) -> dict[str, datetime]:
                     result[token] = expiry
             except (ValueError, TypeError):
                 continue
-        return result
     except FileNotFoundError:
-        return {}
+        result = {}
     except (InvalidToken, json.JSONDecodeError):
         logger.warning(
             "Session store is corrupted or was encrypted with a different key; ignoring"
         )
-        return {}
+        result = {}
+    return result
 
 
 def delete_sessions(path: Path) -> None:

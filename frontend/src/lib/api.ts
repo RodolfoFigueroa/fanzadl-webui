@@ -5,6 +5,8 @@ import type {
     AppSettings,
     AppSettingsPatch,
     DownloadJob,
+    HistoryItem,
+    HistoryPage,
     LibraryEvent,
     LibraryItem,
     StreamVariant,
@@ -322,5 +324,32 @@ export function subscribeNotifications(
             if (err instanceof TypeError) return; // network/navigation cancel — allow retry
             throw err; // unexpected server error — stop retrying
         },
+    });
+}
+
+export async function getHistory(
+    status: 'all' | 'done' | 'error' = 'all',
+    page = 1,
+    pageSize = 50,
+): Promise<HistoryPage> {
+    const params = new URLSearchParams({
+        status,
+        page: String(page),
+        page_size: String(pageSize),
+    });
+    return apiFetch<HistoryPage>(`/api/history/?${params}`);
+}
+
+export async function deleteHistoryItems(ids: number[]): Promise<void> {
+    await apiFetch('/api/history/', {
+        method: 'DELETE',
+        body: JSON.stringify({ ids }),
+    });
+}
+
+export async function deleteAllHistory(): Promise<void> {
+    await apiFetch('/api/history/', {
+        method: 'DELETE',
+        body: JSON.stringify({ all: true }),
     });
 }

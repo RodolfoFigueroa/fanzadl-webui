@@ -31,6 +31,7 @@ class DownloadJob(BaseModel):
     output_path: str | None = None
     error: str | None = None
     source: Literal["manual", "auto"] = "manual"
+    bandwidth_mbps: float | None = None
 
     @classmethod
     def create(

@@ -84,3 +84,24 @@ export interface LibraryEvent {
     part: number | null;
     mylibrary_id: number | null;
 }
+
+export interface HistoryItem {
+    id: number;
+    job_id: string;
+    status: 'done' | 'error';
+    output_name: string;
+    content_id: string | null;
+    source: 'manual' | 'auto';
+    file_size: number | null;
+    output_path: string | null;
+    error: string | null;
+    bandwidth_mbps: number | null;
+    completed_at: string;
+}
+
+export interface HistoryPage {
+    items: HistoryItem[];
+    total: number;
+    page: number;
+    page_size: number;
+}

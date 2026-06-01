@@ -104,7 +104,12 @@ class PersistingFanzaDLManager(FanzaDLManager):
                     "Library update failed with cache loaded. Exception:\n%s", exc
                 )
 
-                assert self._library_db_path is not None  # noqa: S101
+                if self._library_db_path is None:
+                    logger.exception(
+                        "No library_db_path configured, cannot clear cache to recover"
+                    )
+                    raise
+
                 delete_all(self._library_db_path)
                 self._library_cache = {}
                 super().update_library()

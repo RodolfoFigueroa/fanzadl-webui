@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from pathlib import Path
 
@@ -10,6 +9,7 @@ from fanzadl_webui.events import publish_library_event
 from fanzadl_webui.filename import render_template
 from fanzadl_webui.jobs import DownloadJob, JobStatus
 from fanzadl_webui.models import LibraryEvent
+from fanzadl_webui.routes._utils import _fire_background
 from fanzadl_webui.routes.download.runner import (
     _ConcurrencyContext,
     _publish_job_created,
@@ -101,10 +101,12 @@ async def _enqueue_part(
     save_dir_path.mkdir(parents=True, exist_ok=True)
 
     job = DownloadJob.create(output_name=output_name, source="auto")
+    job.bandwidth_mbps = float(bandwidth_mbps)
     app_state.jobs[job.job_id] = job
     app_state.queues[job.job_id] = []
     _publish_job_created(job, app_state.job_created_queues)
-    _wh_task = asyncio.create_task(
+    _fire_background(
+        app_state.background_tasks,
         fire_webhook(
             app_state,
             "job_created",
@@ -114,16 +116,15 @@ async def _enqueue_part(
                 "content_id": job.content_id,
                 "source": job.source,
             },
-        )
+        ),
     )
-    app_state.background_tasks.add(_wh_task)
-    _wh_task.add_done_callback(app_state.background_tasks.discard)
     concurrency = _ConcurrencyContext(
         jobs=app_state.jobs,
         condition=app_state.download_slot_condition,
         app_state=app_state,
     )
-    task = asyncio.create_task(
+    _fire_background(
+        app_state.background_tasks,
         _run_download(
             job,
             video_id,
@@ -133,10 +134,8 @@ async def _enqueue_part(
             output_name_path.name,
             app_state.queues,
             concurrency,
-        )
+        ),
     )
-    app_state.background_tasks.add(task)
-    task.add_done_callback(app_state.background_tasks.discard)
     logger.info(
         "auto-download: enqueued job for video %s (Part %s) (%s mbps)",
         item.content_id,

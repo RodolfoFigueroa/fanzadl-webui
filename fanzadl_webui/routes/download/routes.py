@@ -19,6 +19,7 @@ from fanzadl_webui.jobs import (
     get_jobs,
     get_queues,
 )
+from fanzadl_webui.routes._utils import _fire_background
 from fanzadl_webui.routes.download.runner import (
     _background_tasks,
     _close_streams,
@@ -119,7 +120,8 @@ async def start_download(  # noqa: PLR0913
     jobs[job.job_id] = job
     queues[job.job_id] = []
     _publish_job_created(job, job_created_queues)
-    _wh_task = asyncio.create_task(
+    _fire_background(
+        app_state.background_tasks,
         fire_webhook(
             app_state,
             "job_created",
@@ -129,10 +131,8 @@ async def start_download(  # noqa: PLR0913
                 "content_id": job.content_id,
                 "source": job.source,
             },
-        )
+        ),
     )
-    app_state.background_tasks.add(_wh_task)
-    _wh_task.add_done_callback(app_state.background_tasks.discard)
     concurrency = _ConcurrencyContext(
         jobs=jobs,
         condition=condition,
@@ -140,7 +140,8 @@ async def start_download(  # noqa: PLR0913
         global_job_queues=global_job_queues,
     )
     _publish_global(_compute_active_counts(jobs), global_job_queues)
-    task = asyncio.create_task(
+    _fire_background(
+        _background_tasks,
         _run_download(
             job,
             body.video_id,
@@ -150,10 +151,8 @@ async def start_download(  # noqa: PLR0913
             save_name,
             queues,
             concurrency,
-        )
+        ),
     )
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
 
     return {"job_id": job.job_id}
 
@@ -376,7 +375,8 @@ async def cancel_or_delete_job(
         proc.terminate()
     _publish(job, queues)
     _close_streams(job_id, queues)
-    _wh_task = asyncio.create_task(
+    _fire_background(
+        app_state.background_tasks,
         fire_webhook(
             app_state,
             "job_cancelled",
@@ -385,10 +385,8 @@ async def cancel_or_delete_job(
                 "output_name": job.output_name,
                 "content_id": job.content_id,
             },
-        )
+        ),
     )
-    app_state.background_tasks.add(_wh_task)
-    _wh_task.add_done_callback(app_state.background_tasks.discard)
     async with condition:
         condition.notify_all()
 

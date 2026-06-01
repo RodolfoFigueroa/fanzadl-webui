@@ -9,7 +9,9 @@ import m3u8
 from fanzadl.constants import USER_AGENT
 
 from fanzadl_webui.filename import rescan_and_store
+from fanzadl_webui.history_db import insert_history
 from fanzadl_webui.jobs import DownloadJob, JobStatus, Queues
+from fanzadl_webui.routes._utils import _fire_background
 from fanzadl_webui.state import AppState
 from fanzadl_webui.webhook import fire_webhook
 
@@ -33,6 +35,14 @@ _SIZE_MULTIPLIERS: dict[str, int] = {
 }
 
 
+@dataclass
+class _ConcurrencyContext:
+    jobs: dict[str, DownloadJob]
+    condition: asyncio.Condition
+    app_state: AppState
+    global_job_queues: list[asyncio.Queue[dict[str, int] | None]] | None = None
+
+
 def _parse_size_str(s: str) -> int | None:
     """Parse a formatted byte string into a raw integer byte count.
 
@@ -50,14 +60,6 @@ def _parse_size_str(s: str) -> int | None:
     if multiplier is None:
         return None
     return int(float(m.group(1)) * multiplier)
-
-
-@dataclass
-class _ConcurrencyContext:
-    jobs: dict[str, DownloadJob]
-    condition: asyncio.Condition
-    app_state: AppState
-    global_job_queues: list[asyncio.Queue[dict[str, int] | None]] | None = None
 
 
 def _compute_active_counts(jobs: dict[str, DownloadJob]) -> dict[str, int]:
@@ -177,7 +179,8 @@ async def cancel_active_jobs(
             _publish(job, queues)
             _close_streams(job.job_id, queues)
             if app_state is not None:
-                _task = asyncio.create_task(
+                _fire_background(
+                    app_state.background_tasks,
                     fire_webhook(
                         app_state,
                         "job_cancelled",
@@ -186,10 +189,8 @@ async def cancel_active_jobs(
                             "output_name": job.output_name,
                             "content_id": job.content_id,
                         },
-                    )
+                    ),
                 )
-                app_state.background_tasks.add(_task)
-                _task.add_done_callback(app_state.background_tasks.discard)
     async with condition:
         condition.notify_all()
 
@@ -228,7 +229,7 @@ async def _resolve_media_url(
     part: int,
     stream_index: int,
     app_state: AppState,
-) -> str:
+) -> tuple[str, float | None]:
     """Resolve the direct media URL for a video part and stream index.
 
     Args:
@@ -238,7 +239,8 @@ async def _resolve_media_url(
         app_state: Application state providing the library and HTTP client.
 
     Returns:
-        The absolute URI of the selected media stream.
+        A tuple of ``(url, bandwidth_mbps)`` where ``bandwidth_mbps`` is the
+        stream bandwidth in Mbps or ``None`` if unavailable.
 
     Raises:
         ValueError: If the video or a downloadable quality is not found.
@@ -260,7 +262,10 @@ async def _resolve_media_url(
     response = await app_state.http_client.get(playlist_url, follow_redirects=True)
     response.raise_for_status()
     parsed = m3u8.loads(response.text, uri=playlist_url)
-    return parsed.playlists[stream_index].absolute_uri
+    playlist = parsed.playlists[stream_index]
+    bandwidth = getattr(playlist.stream_info, "bandwidth", None)
+    bandwidth_mbps = bandwidth / 1_000_000 if bandwidth is not None else None
+    return playlist.absolute_uri, bandwidth_mbps
 
 
 async def _launch_process(
@@ -427,6 +432,124 @@ def _finalize_job(  # noqa: PLR0913
     _close_streams(job.job_id, queues)
 
 
+def _fail_job(
+    job: DownloadJob,
+    error_msg: str,
+    queues: Queues,
+    concurrency: _ConcurrencyContext,
+) -> None:
+    """Set a job to error state and schedule side effects as background tasks.
+
+    Sets job error and status, publishes the update to SSE subscribers, closes
+    streams, and schedules the job_failed webhook and history insertion.
+
+    Args:
+        job: The job to mark as failed.
+        error_msg: Error message to set on the job.
+        queues: SSE subscriber queues for the job.
+        concurrency: Concurrency context providing the job registry and app state.
+    """
+    job.error = error_msg
+    job.status = JobStatus.error
+    _publish(job, queues)
+    _publish_global(
+        _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
+    )
+    _close_streams(job.job_id, queues)
+    app_state = concurrency.app_state
+    _fire_background(
+        app_state.background_tasks,
+        fire_webhook(
+            app_state,
+            "job_failed",
+            {
+                "job_id": job.job_id,
+                "output_name": job.output_name,
+                "content_id": job.content_id,
+                "error": job.error,
+            },
+        ),
+    )
+    _fire_background(
+        app_state.background_tasks,
+        asyncio.to_thread(
+            insert_history,
+            app_state.history_db_path,
+            job.job_id,
+            "error",
+            job.output_name,
+            job.content_id,
+            job.source,
+            None,
+            None,
+            job.error,
+            job.bandwidth_mbps,
+        ),
+    )
+
+
+def _handle_terminal_job(
+    job: DownloadJob,
+    concurrency: _ConcurrencyContext,
+) -> None:
+    """Schedule side effects for a job that reached a terminal state after process exit.
+
+    Fires rescan, webhook delivery, and history insertion based on job status.
+
+    Args:
+        job: The finalized job.
+        concurrency: Concurrency context providing the app state.
+    """
+    app_state = concurrency.app_state
+    if job.status == JobStatus.done:
+        _fire_background(_background_tasks, rescan_and_store(app_state))
+        _fire_background(
+            app_state.background_tasks,
+            fire_webhook(
+                app_state,
+                "job_completed",
+                {
+                    "job_id": job.job_id,
+                    "output_name": job.output_name,
+                    "content_id": job.content_id,
+                    "file_size": job.file_size,
+                    "output_path": job.output_path,
+                },
+            ),
+        )
+    elif job.status == JobStatus.error:
+        _fire_background(
+            app_state.background_tasks,
+            fire_webhook(
+                app_state,
+                "job_failed",
+                {
+                    "job_id": job.job_id,
+                    "output_name": job.output_name,
+                    "content_id": job.content_id,
+                    "error": job.error,
+                },
+            ),
+        )
+    if job.status in (JobStatus.done, JobStatus.error):
+        _fire_background(
+            app_state.background_tasks,
+            asyncio.to_thread(
+                insert_history,
+                app_state.history_db_path,
+                job.job_id,
+                job.status,
+                job.output_name,
+                job.content_id,
+                job.source,
+                job.file_size,
+                job.output_path,
+                job.error,
+                job.bandwidth_mbps,
+            ),
+        )
+
+
 async def _run_download(  # noqa: PLR0913
     job: DownloadJob,
     video_id: int,
@@ -466,35 +589,16 @@ async def _run_download(  # noqa: PLR0913
     )
 
     try:
-        media_url = await _resolve_media_url(
-            video_id, part, stream_index, concurrency.app_state
-        )
-    except Exception as exc:  # noqa: BLE001
-        job.error = f"Failed to resolve media URL: {exc}"
-        job.status = JobStatus.error
-        _publish(job, queues)
-        _publish_global(
-            _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
-        )
-        _close_streams(job.job_id, queues)
-        _task = asyncio.create_task(
-            fire_webhook(
-                concurrency.app_state,
-                "job_failed",
-                {
-                    "job_id": job.job_id,
-                    "output_name": job.output_name,
-                    "content_id": job.content_id,
-                    "error": job.error,
-                },
+        try:
+            media_url, bandwidth_mbps = await _resolve_media_url(
+                video_id, part, stream_index, concurrency.app_state
             )
-        )
-        concurrency.app_state.background_tasks.add(_task)
-        _task.add_done_callback(concurrency.app_state.background_tasks.discard)
-        return
+            job.bandwidth_mbps = bandwidth_mbps
+        except Exception as exc:  # noqa: BLE001
+            _fail_job(job, f"Failed to resolve media URL: {exc}", queues, concurrency)
+            return
 
-    _publish(job, queues)
-    try:
+        _publish(job, queues)
         try:
             proc = await _launch_process(
                 media_url,
@@ -504,66 +608,13 @@ async def _run_download(  # noqa: PLR0913
             )
             output_lines = await _stream_output(proc, job, queues)
         except Exception as exc:  # noqa: BLE001
-            job.error = str(exc)
-            job.status = JobStatus.error
-            _publish(job, queues)
-            _publish_global(
-                _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
-            )
-            _close_streams(job.job_id, queues)
-            _task = asyncio.create_task(
-                fire_webhook(
-                    concurrency.app_state,
-                    "job_failed",
-                    {
-                        "job_id": job.job_id,
-                        "output_name": job.output_name,
-                        "content_id": job.content_id,
-                        "error": job.error,
-                    },
-                )
-            )
-            concurrency.app_state.background_tasks.add(_task)
-            _task.add_done_callback(concurrency.app_state.background_tasks.discard)
+            _fail_job(job, str(exc), queues, concurrency)
             return
+
         _finalize_and_broadcast(
             job, proc.returncode, output_lines, save_dir, save_name, queues, concurrency
         )
-        if job.status == JobStatus.done:
-            _task = asyncio.create_task(rescan_and_store(concurrency.app_state))
-            _background_tasks.add(_task)
-            _task.add_done_callback(_background_tasks.discard)
-        if job.status == JobStatus.done:
-            _wh_task = asyncio.create_task(
-                fire_webhook(
-                    concurrency.app_state,
-                    "job_completed",
-                    {
-                        "job_id": job.job_id,
-                        "output_name": job.output_name,
-                        "content_id": job.content_id,
-                        "file_size": job.file_size,
-                        "output_path": job.output_path,
-                    },
-                )
-            )
-            concurrency.app_state.background_tasks.add(_wh_task)
-            _wh_task.add_done_callback(concurrency.app_state.background_tasks.discard)
-        elif job.status == JobStatus.error:
-            _wh_task = asyncio.create_task(
-                fire_webhook(
-                    concurrency.app_state,
-                    "job_failed",
-                    {
-                        "job_id": job.job_id,
-                        "output_name": job.output_name,
-                        "content_id": job.content_id,
-                        "error": job.error,
-                    },
-                )
-            )
-            concurrency.app_state.background_tasks.add(_wh_task)
-            _wh_task.add_done_callback(concurrency.app_state.background_tasks.discard)
+        _handle_terminal_job(job, concurrency)
     finally:
         async with concurrency.condition:
             concurrency.condition.notify_all()

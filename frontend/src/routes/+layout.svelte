@@ -68,6 +68,7 @@ async function handleLogout() {
 const navLinks = [
     { href: '/', label: 'Library' },
     { href: '/downloads', label: 'Downloads' },
+    { href: '/history', label: 'History' },
 ];
 </script>
 

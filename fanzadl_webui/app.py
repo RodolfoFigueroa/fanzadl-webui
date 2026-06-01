@@ -20,6 +20,7 @@ from starlette.types import Scope
 
 from fanzadl_webui.dependencies import (
     CONFIG_PATH,
+    HISTORY_DB_PATH,
     IMAGE_CACHE_DIR,
     JAVSTASH_KEY_PATH,
     LIBRARY_DB_PATH,
@@ -28,12 +29,14 @@ from fanzadl_webui.dependencies import (
     TOKEN_STORE_PATH,
 )
 from fanzadl_webui.filename import rescan_and_store
+from fanzadl_webui.history_db import init_history_db
 from fanzadl_webui.library_db import save_library_db
 from fanzadl_webui.log_handler import NotificationHandler
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.routes import (
     auth,
     download,
+    history,
     images,
     library,
     notifications,
@@ -160,6 +163,7 @@ def _init_app_state(  # noqa: PLR0913
         webhook_url=config.webhook_url,
         webhook_secret=config.webhook_secret,
         webhook_events=config.webhook_events,
+        history_db_path=HISTORY_DB_PATH,
         config_path=CONFIG_PATH,
         save_fn=save_fn,
         save_api_key_fn=save_api_key_fn,
@@ -251,6 +255,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     ) = _make_persistence_handlers(enc_key_str)
     scheduler = AsyncIOScheduler()
     scheduler.start()
+    await asyncio.to_thread(init_history_db, HISTORY_DB_PATH)
     async with httpx.AsyncClient() as client:
         _init_app_state(
             app,
@@ -339,6 +344,7 @@ app.include_router(download.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(images.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+app.include_router(history.router, prefix="/api")
 
 _dist = Path(__file__).parent.parent / "frontend" / "dist"
 if _dist.is_dir():

@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import httpx
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from datetime import datetime
+    from pathlib import Path
 
-from fanzadl_webui.manager import PersistingFanzaDLManager
-from fanzadl_webui.models import DownloadJob, Queues, StreamVariant
-from fanzadl_webui.store.config import LogLevel
+    import httpx
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    from fanzadl_webui.manager import PersistingFanzaDLManager
+    from fanzadl_webui.models import DownloadJob, Queues, StreamVariant
+    from fanzadl_webui.store.config import LogLevel
 
 
 @dataclass(kw_only=True)
@@ -32,6 +34,7 @@ class AppState:
     webhook_url: str | None
     webhook_secret: str | None
     webhook_events: list[str]
+    history_db_path: Path
     config_path: Path
     save_fn: Callable[[str, str], None]
     save_api_key_fn: Callable[[str], None]

@@ -76,5 +76,5 @@ async def fire_webhook(
                 url,
                 response.status_code,
             )
-    except Exception:
-        logger.warning("Webhook delivery error for %s", url, exc_info=True)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Webhook delivery error for %s: %s", url, exc)

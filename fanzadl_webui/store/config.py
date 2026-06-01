@@ -66,7 +66,7 @@ def load_config(path: Path) -> AppConfig:
         return AppConfig.model_validate(data)
     except FileNotFoundError:
         return AppConfig()
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning(
             "Config file at %s is corrupt or unreadable; using defaults", path
         )
