@@ -16,6 +16,7 @@ from fanzadl_webui.routes.download.runner import (
     _run_download,
 )
 from fanzadl_webui.state import AppState
+from fanzadl_webui.webhook import fire_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -99,10 +100,24 @@ async def _enqueue_part(
     save_dir_path = DOWNLOAD_DIR / output_name_path.parent
     save_dir_path.mkdir(parents=True, exist_ok=True)
 
-    job = DownloadJob.create(output_name=output_name)
+    job = DownloadJob.create(output_name=output_name, source="auto")
     app_state.jobs[job.job_id] = job
     app_state.queues[job.job_id] = []
     _publish_job_created(job, app_state.job_created_queues)
+    _wh_task = asyncio.create_task(
+        fire_webhook(
+            app_state,
+            "job_created",
+            {
+                "job_id": job.job_id,
+                "output_name": job.output_name,
+                "content_id": job.content_id,
+                "source": job.source,
+            },
+        )
+    )
+    app_state.background_tasks.add(_wh_task)
+    _wh_task.add_done_callback(app_state.background_tasks.discard)
     concurrency = _ConcurrencyContext(
         jobs=app_state.jobs,
         condition=app_state.download_slot_condition,

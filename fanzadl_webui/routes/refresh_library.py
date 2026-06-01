@@ -22,13 +22,14 @@ from fanzadl_webui.routes.download import (
 )
 from fanzadl_webui.routes.images import precache_all, purge_stale
 from fanzadl_webui.state import AppState
+from fanzadl_webui.webhook import fire_webhook
 
 router = APIRouter()
 
 _background_tasks: set[asyncio.Task] = set()
 
 
-def _publish_library_diff(
+async def _publish_library_diff(
     old_snapshot: dict[int, str],
     manager: FanzaDLManager,
     app_state: AppState,
@@ -47,6 +48,19 @@ def _publish_library_diff(
                     mylibrary_id=vid_id,
                 ),
             )
+            _wh_task = asyncio.create_task(
+                fire_webhook(
+                    app_state,
+                    "item_added",
+                    {
+                        "content_id": item.content_id,
+                        "title": getattr(item, "title", None),
+                        "mylibrary_id": vid_id,
+                    },
+                )
+            )
+            app_state.background_tasks.add(_wh_task)
+            _wh_task.add_done_callback(app_state.background_tasks.discard)
     for vid_id in old_ids_set - current_ids:
         publish_library_event(
             app_state,
@@ -56,6 +70,18 @@ def _publish_library_diff(
                 mylibrary_id=vid_id,
             ),
         )
+        _wh_task = asyncio.create_task(
+            fire_webhook(
+                app_state,
+                "item_expired",
+                {
+                    "content_id": old_snapshot[vid_id],
+                    "mylibrary_id": vid_id,
+                },
+            )
+        )
+        app_state.background_tasks.add(_wh_task)
+        _wh_task.add_done_callback(app_state.background_tasks.discard)
 
 
 async def _warm_save_and_enqueue(
@@ -76,7 +102,7 @@ async def _warm_save_and_enqueue(
             new_ids or set(),
         )
         manager._ids_restored_from_cache = set()  # noqa: SLF001
-    _publish_library_diff(old_snapshot, manager, app_state)
+    await _publish_library_diff(old_snapshot, manager, app_state)
     auto_new_ids = (new_ids or set()) if app_state.auto_download_new_items else set()
     if app_state.auto_download_new_items and new_ids:
         await auto_enqueue_new_items(new_ids, app_state)

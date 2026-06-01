@@ -183,6 +183,17 @@ export async function rotateApiKey(): Promise<ApiKeyInfo> {
     });
 }
 
+export async function testWebhook(url: string): Promise<{
+    status_code?: number;
+    ok?: boolean;
+    error?: string;
+}> {
+    return apiFetch('/api/settings/webhook/test', {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+    });
+}
+
 export function subscribeLibraryEvents(
     onMessage: (event: LibraryEvent) => void,
     onError?: (err: unknown) => void,

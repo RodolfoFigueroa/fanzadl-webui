@@ -30,14 +30,21 @@ class DownloadJob(BaseModel):
     file_size: int | None = None
     output_path: str | None = None
     error: str | None = None
+    source: Literal["manual", "auto"] = "manual"
 
     @classmethod
-    def create(cls, output_name: str, content_id: str | None = None) -> "DownloadJob":
+    def create(
+        cls,
+        output_name: str,
+        content_id: str | None = None,
+        source: Literal["manual", "auto"] = "manual",
+    ) -> "DownloadJob":
         return cls(
             job_id=str(uuid.uuid4()),
             status=JobStatus.pending,
             output_name=output_name,
             content_id=content_id,
+            source=source,
         )
 
 

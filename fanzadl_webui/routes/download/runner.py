@@ -11,6 +11,7 @@ from fanzadl.constants import USER_AGENT
 from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.jobs import DownloadJob, JobStatus, Queues
 from fanzadl_webui.state import AppState
+from fanzadl_webui.webhook import fire_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,7 @@ async def cancel_active_jobs(
     jobs: dict[str, DownloadJob],
     queues: Queues,
     condition: asyncio.Condition,
+    app_state: AppState | None = None,
 ) -> None:
     """Cancel all running or pending jobs and notify the concurrency condition.
 
@@ -164,6 +166,7 @@ async def cancel_active_jobs(
         jobs: Mapping of job IDs to active download jobs.
         queues: SSE subscriber queues, keyed by job ID.
         condition: Concurrency condition to notify after cancellation.
+        app_state: Optional application state for firing webhook events.
     """
     for job in list(jobs.values()):
         if job.status in (JobStatus.running, JobStatus.pending):
@@ -173,6 +176,20 @@ async def cancel_active_jobs(
                 proc.terminate()
             _publish(job, queues)
             _close_streams(job.job_id, queues)
+            if app_state is not None:
+                _task = asyncio.create_task(
+                    fire_webhook(
+                        app_state,
+                        "job_cancelled",
+                        {
+                            "job_id": job.job_id,
+                            "output_name": job.output_name,
+                            "content_id": job.content_id,
+                        },
+                    )
+                )
+                app_state.background_tasks.add(_task)
+                _task.add_done_callback(app_state.background_tasks.discard)
     async with condition:
         condition.notify_all()
 
@@ -460,6 +477,20 @@ async def _run_download(  # noqa: PLR0913
             _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
         )
         _close_streams(job.job_id, queues)
+        _task = asyncio.create_task(
+            fire_webhook(
+                concurrency.app_state,
+                "job_failed",
+                {
+                    "job_id": job.job_id,
+                    "output_name": job.output_name,
+                    "content_id": job.content_id,
+                    "error": job.error,
+                },
+            )
+        )
+        concurrency.app_state.background_tasks.add(_task)
+        _task.add_done_callback(concurrency.app_state.background_tasks.discard)
         return
 
     _publish(job, queues)
@@ -480,6 +511,20 @@ async def _run_download(  # noqa: PLR0913
                 _compute_active_counts(concurrency.jobs), concurrency.global_job_queues
             )
             _close_streams(job.job_id, queues)
+            _task = asyncio.create_task(
+                fire_webhook(
+                    concurrency.app_state,
+                    "job_failed",
+                    {
+                        "job_id": job.job_id,
+                        "output_name": job.output_name,
+                        "content_id": job.content_id,
+                        "error": job.error,
+                    },
+                )
+            )
+            concurrency.app_state.background_tasks.add(_task)
+            _task.add_done_callback(concurrency.app_state.background_tasks.discard)
             return
         _finalize_and_broadcast(
             job, proc.returncode, output_lines, save_dir, save_name, queues, concurrency
@@ -488,6 +533,37 @@ async def _run_download(  # noqa: PLR0913
             _task = asyncio.create_task(rescan_and_store(concurrency.app_state))
             _background_tasks.add(_task)
             _task.add_done_callback(_background_tasks.discard)
+        if job.status == JobStatus.done:
+            _wh_task = asyncio.create_task(
+                fire_webhook(
+                    concurrency.app_state,
+                    "job_completed",
+                    {
+                        "job_id": job.job_id,
+                        "output_name": job.output_name,
+                        "content_id": job.content_id,
+                        "file_size": job.file_size,
+                        "output_path": job.output_path,
+                    },
+                )
+            )
+            concurrency.app_state.background_tasks.add(_wh_task)
+            _wh_task.add_done_callback(concurrency.app_state.background_tasks.discard)
+        elif job.status == JobStatus.error:
+            _wh_task = asyncio.create_task(
+                fire_webhook(
+                    concurrency.app_state,
+                    "job_failed",
+                    {
+                        "job_id": job.job_id,
+                        "output_name": job.output_name,
+                        "content_id": job.content_id,
+                        "error": job.error,
+                    },
+                )
+            )
+            concurrency.app_state.background_tasks.add(_wh_task)
+            _wh_task.add_done_callback(concurrency.app_state.background_tasks.discard)
     finally:
         async with concurrency.condition:
             concurrency.condition.notify_all()

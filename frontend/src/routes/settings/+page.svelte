@@ -8,6 +8,7 @@ import {
     getSettings,
     logout,
     rotateApiKey,
+    testWebhook,
     updateSettings,
 } from '$lib/api';
 import {
@@ -23,6 +24,7 @@ type Tab =
     | 'filenames'
     | 'logging'
     | 'schedule'
+    | 'webhook'
     | 'api';
 let activeTab = $state<Tab>('download');
 
@@ -61,6 +63,63 @@ let autoDownloadMissingParts = $state(
     getCachedSettings()?.auto_download_missing_parts ?? false,
 );
 
+let webhookUrl = $state(getCachedSettings()?.webhook_url ?? '');
+let webhookSecretConfigured = $state(
+    getCachedSettings()?.webhook_secret_configured ?? false,
+);
+let webhookSecretInput = $state('');
+let webhookSecretClearing = $state(false);
+let webhookEvents = $state<Set<string>>(
+    new Set(
+        getCachedSettings()?.webhook_events ?? [
+            'job_created',
+            'job_completed',
+            'job_failed',
+            'job_cancelled',
+            'item_added',
+            'item_expired',
+        ],
+    ),
+);
+let webhookSaving = $state(false);
+let webhookError = $state('');
+let webhookTesting = $state(false);
+let webhookTestResult = $state<{
+    status_code?: number;
+    ok?: boolean;
+    error?: string;
+} | null>(null);
+
+let downloadSaving = $state(false);
+let downloadError = $state('');
+let filenamesSaving = $state(false);
+let filenamesError = $state('');
+let loggingSaving = $state(false);
+let loggingError = $state('');
+let scheduleSaving = $state(false);
+let scheduleError = $state('');
+
+const WEBHOOK_EVENT_GROUPS: {
+    label: string;
+    events: { id: string; label: string }[];
+}[] = [
+    {
+        label: 'Jobs',
+        events: [
+            { id: 'job_created', label: 'Job created' },
+            { id: 'job_completed', label: 'Job completed' },
+            { id: 'job_failed', label: 'Job failed' },
+            { id: 'job_cancelled', label: 'Job cancelled' },
+        ],
+    },
+    {
+        label: 'Library',
+        events: [
+            { id: 'item_added', label: 'Item added to library' },
+            { id: 'item_expired', label: 'Item expired from library' },
+        ],
+    },
+];
 let javstashKeyInput = $state('');
 let javstashSaving = $state(false);
 let javstashError = $state('');
@@ -86,6 +145,9 @@ onMount(async () => {
     refreshCron = s.library_refresh_cron;
     autoDownloadNewItems = s.auto_download_new_items;
     autoDownloadMissingParts = s.auto_download_missing_parts;
+    webhookUrl = s.webhook_url ?? '';
+    webhookSecretConfigured = s.webhook_secret_configured;
+    webhookEvents = new Set(s.webhook_events);
 
     const k = await getApiKey();
     apiKeyPreview = k.api_key_preview;
@@ -163,6 +225,7 @@ const tabs: { id: Tab; label: string }[] = [
     { id: 'filenames', label: 'Filenames' },
     { id: 'logging', label: 'Logging' },
     { id: 'schedule', label: 'Schedule' },
+    { id: 'webhook', label: 'Webhooks' },
     { id: 'api', label: 'API' },
 ];
 
@@ -257,7 +320,6 @@ let cronResult = $derived.by<CronResult>(() => {
                     bind:value={threadCount}
                     onchange={() => {
                         threadCount = Math.min(32, Math.max(1, threadCount));
-                        updateSettings({ download_thread_count: threadCount });
                     }}
                     class="w-24 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
                         focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
@@ -282,14 +344,37 @@ let cronResult = $derived.by<CronResult>(() => {
                     bind:value={maxConcurrentDownloads}
                     onchange={() => {
                         maxConcurrentDownloads = Math.max(1, maxConcurrentDownloads);
-                        updateSettings({
-                            max_concurrent_downloads: maxConcurrentDownloads,
-                        });
                     }}
                     class="w-24 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
                         focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
                         transition-shadow"
                 />
+            </div>
+            {#if downloadError}
+                <p class="text-xs text-red-400">{downloadError}</p>
+            {/if}
+            <div class="pt-1">
+                <button
+                    onclick={async () => {
+                        downloadSaving = true;
+                        downloadError = '';
+                        try {
+                            await updateSettings({
+                                download_thread_count: threadCount,
+                                max_concurrent_downloads: maxConcurrentDownloads,
+                            });
+                        } catch (e) {
+                            downloadError = e instanceof Error ? e.message : 'Failed to save';
+                        } finally {
+                            downloadSaving = false;
+                        }
+                    }}
+                    disabled={downloadSaving}
+                    class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
+                        text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
+                >
+                    {downloadSaving ? 'Saving…' : 'Save'}
+                </button>
             </div>
 
         {:else if activeTab === 'javstash'}
@@ -357,10 +442,6 @@ let cronResult = $derived.by<CronResult>(() => {
                     id="single-part-template"
                     type="text"
                     bind:value={singlePartTemplate}
-                    onchange={() => {
-                        if (singlePartErrors.length === 0)
-                            updateSettings({ single_part_filename_template: singlePartTemplate });
-                    }}
                     class="w-full bg-th-input border rounded-lg px-3 py-2 text-th-text font-mono text-sm
                         focus:outline-none focus:ring-2 focus:border-transparent transition-shadow
                         {singlePartErrors.length > 0
@@ -391,10 +472,6 @@ let cronResult = $derived.by<CronResult>(() => {
                     id="multi-part-template"
                     type="text"
                     bind:value={multiPartTemplate}
-                    onchange={() => {
-                        if (multiPartErrors.length === 0)
-                            updateSettings({ multi_part_filename_template: multiPartTemplate });
-                    }}
                     class="w-full bg-th-input border rounded-lg px-3 py-2 text-th-text font-mono text-sm
                         focus:outline-none focus:ring-2 focus:border-transparent transition-shadow
                         {multiPartErrors.length > 0
@@ -442,6 +519,32 @@ let cronResult = $derived.by<CronResult>(() => {
                     </ul>
                 </div>
             </div>
+            {#if filenamesError}
+                <p class="text-xs text-red-400">{filenamesError}</p>
+            {/if}
+            <div class="pt-1">
+                <button
+                    onclick={async () => {
+                        filenamesSaving = true;
+                        filenamesError = '';
+                        try {
+                            await updateSettings({
+                                single_part_filename_template: singlePartTemplate,
+                                multi_part_filename_template: multiPartTemplate,
+                            });
+                        } catch (e) {
+                            filenamesError = e instanceof Error ? e.message : 'Failed to save';
+                        } finally {
+                            filenamesSaving = false;
+                        }
+                    }}
+                    disabled={filenamesSaving || singlePartErrors.length > 0 || multiPartErrors.length > 0}
+                    class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
+                        text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
+                >
+                    {filenamesSaving ? 'Saving…' : 'Save'}
+                </button>
+            </div>
 
         {:else if activeTab === 'logging'}
             <div>
@@ -457,7 +560,6 @@ let cronResult = $derived.by<CronResult>(() => {
                 <select
                     id="log-level"
                     bind:value={logLevel}
-                    onchange={() => updateSettings({ log_level: logLevel })}
                     class="w-32 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
                         focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
                         transition-shadow"
@@ -468,6 +570,29 @@ let cronResult = $derived.by<CronResult>(() => {
                     <option value="ERROR">ERROR</option>
                 </select>
             </div>
+            {#if loggingError}
+                <p class="text-xs text-red-400">{loggingError}</p>
+            {/if}
+            <div class="pt-1">
+                <button
+                    onclick={async () => {
+                        loggingSaving = true;
+                        loggingError = '';
+                        try {
+                            await updateSettings({ log_level: logLevel });
+                        } catch (e) {
+                            loggingError = e instanceof Error ? e.message : 'Failed to save';
+                        } finally {
+                            loggingSaving = false;
+                        }
+                    }}
+                    disabled={loggingSaving}
+                    class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
+                        text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
+                >
+                    {loggingSaving ? 'Saving…' : 'Save'}
+                </button>
+            </div>
 
         {:else if activeTab === 'schedule'}
             <div>
@@ -475,8 +600,6 @@ let cronResult = $derived.by<CronResult>(() => {
                     <input
                         type="checkbox"
                         bind:checked={autoDownloadNewItems}
-                        onchange={() =>
-                            updateSettings({ auto_download_new_items: autoDownloadNewItems })}
                         class="w-4 h-4 rounded border border-th-border-input bg-th-input
                             accent-th-border-strong cursor-pointer"
                     />
@@ -495,8 +618,6 @@ let cronResult = $derived.by<CronResult>(() => {
                     <input
                         type="checkbox"
                         bind:checked={autoDownloadMissingParts}
-                        onchange={() =>
-                            updateSettings({ auto_download_missing_parts: autoDownloadMissingParts })}
                         class="w-4 h-4 rounded border border-th-border-input bg-th-input
                             accent-th-border-strong cursor-pointer"
                     />
@@ -514,8 +635,6 @@ let cronResult = $derived.by<CronResult>(() => {
                     <input
                         type="checkbox"
                         bind:checked={scheduleEnabled}
-                        onchange={() =>
-                            updateSettings({ library_refresh_enabled: scheduleEnabled })}
                         class="w-4 h-4 rounded border border-th-border-input bg-th-input
                             accent-th-border-strong cursor-pointer"
                     />
@@ -544,10 +663,6 @@ let cronResult = $derived.by<CronResult>(() => {
                     bind:value={refreshCron}
                     disabled={!scheduleEnabled}
                     oninput={() => { /* triggers $derived re-evaluation */ }}
-                    onchange={() => {
-                        if (cronResult.ok)
-                            updateSettings({ library_refresh_cron: refreshCron });
-                    }}
                     class="w-full bg-th-input border rounded-lg px-3 py-2 text-th-text font-mono text-sm
                         focus:outline-none focus:ring-2 focus:border-transparent transition-shadow
                         disabled:opacity-50 disabled:cursor-not-allowed
@@ -564,6 +679,207 @@ let cronResult = $derived.by<CronResult>(() => {
                         <p class="text-xs text-red-400 mt-1.5">{cronResult.error}</p>
                     {/if}
                 {/if}
+            </div>
+            {#if scheduleError}
+                <p class="text-xs text-red-400">{scheduleError}</p>
+            {/if}
+            <div class="pt-1">
+                <button
+                    onclick={async () => {
+                        scheduleSaving = true;
+                        scheduleError = '';
+                        try {
+                            await updateSettings({
+                                auto_download_new_items: autoDownloadNewItems,
+                                auto_download_missing_parts: autoDownloadMissingParts,
+                                library_refresh_enabled: scheduleEnabled,
+                                library_refresh_cron: refreshCron,
+                            });
+                        } catch (e) {
+                            scheduleError = e instanceof Error ? e.message : 'Failed to save';
+                        } finally {
+                            scheduleSaving = false;
+                        }
+                    }}
+                    disabled={scheduleSaving || (scheduleEnabled && !cronResult.ok)}
+                    class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
+                        text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
+                >
+                    {scheduleSaving ? 'Saving…' : 'Save'}
+                </button>
+            </div>
+
+        {:else if activeTab === 'webhook'}
+            <div>
+                <label
+                    class="block text-sm font-medium text-th-text-muted mb-1.5"
+                    for="webhook-url"
+                >
+                    Webhook URL
+                </label>
+                <p class="text-xs text-th-text-dim mb-2">
+                    POST notifications will be sent to this URL for the selected events.
+                    Leave blank to disable webhooks.
+                </p>
+                <div class="flex gap-2">
+                    <input
+                        id="webhook-url"
+                        type="url"
+                        placeholder="https://example.com/webhook"
+                        bind:value={webhookUrl}
+                        class="flex-1 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
+                            focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
+                            transition-shadow"
+                    />
+                </div>
+            </div>
+            <div>
+                <p class="text-sm font-medium text-th-text-muted mb-1.5">Webhook secret</p>
+                <p class="text-xs text-th-text-dim mb-2">
+                    Optional HMAC-SHA256 signing secret. When set, each request includes an
+                    <code class="text-th-text">X-Webhook-Signature: sha256=&lt;hex&gt;</code> header.
+                </p>
+                {#if webhookSecretConfigured && !webhookSecretClearing}
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-th-text-dim">Secret configured</span>
+                        <button
+                            onclick={() => (webhookSecretClearing = true)}
+                            class="px-3 py-1.5 text-xs rounded-lg border border-th-border
+                                text-th-text-dim hover:text-red-400 hover:border-red-800 transition-colors"
+                        >
+                            Clear secret
+                        </button>
+                    </div>
+                {:else}
+                    <input
+                        type="password"
+                        placeholder={webhookSecretClearing ? 'Leave blank to clear, or enter a new secret' : 'Enter a secret to enable signing'}
+                        bind:value={webhookSecretInput}
+                        class="w-full bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
+                            focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
+                            transition-shadow"
+                    />
+                    {#if webhookSecretClearing}
+                        <p class="text-xs text-th-text-dim mt-1">
+                            Enter a new secret or leave blank to remove signing.
+                        </p>
+                    {/if}
+                {/if}
+            </div>
+            <div>
+                <p class="text-sm font-medium text-th-text-muted mb-1.5">Events</p>
+                <p class="text-xs text-th-text-dim mb-2">Choose which events trigger a webhook delivery.</p>
+                <div class="space-y-4">
+                    {#each WEBHOOK_EVENT_GROUPS as group}
+                        {@const groupIds = group.events.map(e => e.id)}
+                        {@const allChecked = groupIds.every(id => webhookEvents.has(id))}
+                        {@const someChecked = !allChecked && groupIds.some(id => webhookEvents.has(id))}
+                        <div>
+                            <label class="flex items-center gap-3 cursor-pointer w-fit mb-2">
+                                <input
+                                    type="checkbox"
+                                    checked={allChecked}
+                                    indeterminate={someChecked}
+                                    onchange={() => {
+                                        const next = new Set(webhookEvents);
+                                        if (allChecked) {
+                                            groupIds.forEach(id => next.delete(id));
+                                        } else {
+                                            groupIds.forEach(id => next.add(id));
+                                        }
+                                        webhookEvents = next;
+                                    }}
+                                    class="w-4 h-4 rounded border border-th-border-input bg-th-input
+                                        accent-th-border-strong cursor-pointer"
+                                />
+                                <span class="text-sm font-semibold text-th-text-muted">{group.label}</span>
+                            </label>
+                            <div class="space-y-2 pl-7">
+                                {#each group.events as ev}
+                                    <label class="flex items-center gap-3 cursor-pointer w-fit">
+                                        <input
+                                            type="checkbox"
+                                            checked={webhookEvents.has(ev.id)}
+                                            onchange={() => {
+                                                const next = new Set(webhookEvents);
+                                                if (next.has(ev.id)) next.delete(ev.id); else next.add(ev.id);
+                                                webhookEvents = next;
+                                            }}
+                                            class="w-4 h-4 rounded border border-th-border-input bg-th-input
+                                                accent-th-border-strong cursor-pointer"
+                                        />
+                                        <span class="text-sm text-th-text-muted">{ev.label}</span>
+                                    </label>
+                                {/each}
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+            {#if webhookError}
+                <p class="text-xs text-red-400">{webhookError}</p>
+            {/if}
+            {#if webhookTestResult !== null}
+                {#if webhookTestResult.error}
+                    <p class="text-xs text-red-400">Test failed: {webhookTestResult.error}</p>
+                {:else if webhookTestResult.ok}
+                    <p class="text-xs text-green-400">Test succeeded (HTTP {webhookTestResult.status_code})</p>
+                {:else}
+                    <p class="text-xs text-amber-400">Test sent but server returned HTTP {webhookTestResult.status_code}</p>
+                {/if}
+            {/if}
+            <div class="flex gap-3 pt-1">
+                <button
+                    onclick={async () => {
+                        webhookSaving = true;
+                        webhookError = '';
+                        webhookTestResult = null;
+                        try {
+                            const patch: Record<string, unknown> = {
+                                webhook_url: webhookUrl.trim() || null,
+                                webhook_events: [...webhookEvents],
+                            };
+                            if (webhookSecretClearing) {
+                                patch.webhook_secret = webhookSecretInput.trim() || null;
+                            } else if (webhookSecretInput.trim()) {
+                                patch.webhook_secret = webhookSecretInput.trim();
+                            }
+                            const s = await updateSettings(patch as never);
+                            webhookUrl = s.webhook_url ?? '';
+                            webhookSecretConfigured = s.webhook_secret_configured;
+                            webhookSecretInput = '';
+                            webhookSecretClearing = false;
+                        } catch (e) {
+                            webhookError = e instanceof Error ? e.message : 'Failed to save';
+                        } finally {
+                            webhookSaving = false;
+                        }
+                    }}
+                    disabled={webhookSaving}
+                    class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
+                        text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
+                >
+                    {webhookSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                    onclick={async () => {
+                        webhookTesting = true;
+                        webhookTestResult = null;
+                        try {
+                            webhookTestResult = await testWebhook(webhookUrl.trim());
+                        } catch (e) {
+                            webhookTestResult = { error: e instanceof Error ? e.message : 'Request failed' };
+                        } finally {
+                            webhookTesting = false;
+                        }
+                    }}
+                    disabled={webhookTesting || !webhookUrl.trim()}
+                    class="px-4 py-2 text-sm rounded-lg border border-th-border
+                        text-th-text-muted hover:text-th-text hover:border-th-border-strong
+                        transition-colors disabled:opacity-40"
+                >
+                    {webhookTesting ? 'Testing…' : 'Test'}
+                </button>
             </div>
 
         {:else if activeTab === 'api'}

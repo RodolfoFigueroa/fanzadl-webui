@@ -29,6 +29,9 @@ class AppState:
     library_refresh_cron: str
     auto_download_new_items: bool
     auto_download_missing_parts: bool
+    webhook_url: str | None
+    webhook_secret: str | None
+    webhook_events: list[str]
     config_path: Path
     save_fn: Callable[[str, str], None]
     save_api_key_fn: Callable[[str], None]

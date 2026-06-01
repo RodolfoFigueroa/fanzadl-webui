@@ -1,11 +1,16 @@
 import asyncio
+import hashlib
+import hmac
+import json
 import logging
 import secrets
+from datetime import UTC, datetime
 from typing import Annotated
 
+import httpx
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import AnyHttpUrl, BaseModel, Field, SecretStr
 
 from fanzadl_webui.dependencies import (
     JAVSTASH_KEY_PATH,
@@ -36,6 +41,9 @@ class AppSettings(BaseModel):
     library_refresh_cron: str
     auto_download_new_items: bool
     auto_download_missing_parts: bool
+    webhook_url: str | None
+    webhook_secret_configured: bool
+    webhook_events: list[str]
 
 
 class AppSettingsPatch(BaseModel):
@@ -49,6 +57,9 @@ class AppSettingsPatch(BaseModel):
     library_refresh_cron: str | None = None
     auto_download_new_items: bool | None = None
     auto_download_missing_parts: bool | None = None
+    webhook_url: AnyHttpUrl | None = None
+    webhook_secret: str | None = None
+    webhook_events: list[str] | None = None
 
 
 @router.get("/settings/")
@@ -67,6 +78,9 @@ def get_settings(
         library_refresh_cron=app_state.library_refresh_cron,
         auto_download_new_items=app_state.auto_download_new_items,
         auto_download_missing_parts=app_state.auto_download_missing_parts,
+        webhook_url=app_state.webhook_url,
+        webhook_secret_configured=app_state.webhook_secret is not None,
+        webhook_events=app_state.webhook_events,
     )
 
 
@@ -145,6 +159,12 @@ async def update_settings(
         app_state.auto_download_new_items = body.auto_download_new_items
     if body.auto_download_missing_parts is not None:
         app_state.auto_download_missing_parts = body.auto_download_missing_parts
+    if "webhook_url" in body.model_fields_set:
+        app_state.webhook_url = str(body.webhook_url) if body.webhook_url else None
+    if "webhook_secret" in body.model_fields_set:
+        app_state.webhook_secret = body.webhook_secret or None
+    if body.webhook_events is not None:
+        app_state.webhook_events = body.webhook_events
     _refresh_enabled = app_state.library_refresh_enabled
     _refresh_cron = app_state.library_refresh_cron
     if _refresh_enabled:
@@ -164,6 +184,9 @@ async def update_settings(
             library_refresh_cron=app_state.library_refresh_cron,
             auto_download_new_items=app_state.auto_download_new_items,
             auto_download_missing_parts=app_state.auto_download_missing_parts,
+            webhook_url=app_state.webhook_url,
+            webhook_secret=app_state.webhook_secret,
+            webhook_events=app_state.webhook_events,
         ),
     )
     return AppSettings(
@@ -177,7 +200,65 @@ async def update_settings(
         library_refresh_cron=app_state.library_refresh_cron,
         auto_download_new_items=app_state.auto_download_new_items,
         auto_download_missing_parts=app_state.auto_download_missing_parts,
+        webhook_url=app_state.webhook_url,
+        webhook_secret_configured=app_state.webhook_secret is not None,
+        webhook_events=app_state.webhook_events,
     )
+
+
+class WebhookTestResult(BaseModel):
+    status_code: int | None = None
+    ok: bool | None = None
+    error: str | None = None
+
+
+class WebhookTestRequest(BaseModel):
+    url: AnyHttpUrl
+
+
+@router.post("/settings/webhook/test")
+async def test_webhook(
+    body: WebhookTestRequest,
+    app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> WebhookTestResult:
+    """Send a test event to the configured webhook URL.
+
+    Returns the HTTP status code received, or an error message if the
+    request could not be delivered.
+
+    Raises:
+        HTTPException: 400 if no webhook URL is configured.
+    """
+    url = str(body.url)
+    if not url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No webhook URL configured",
+        )
+    envelope = {
+        "event": "test",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "data": {},
+    }
+    body = json.dumps(envelope).encode()
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    secret = app_state.webhook_secret
+    if secret:
+        sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        headers["X-Webhook-Signature"] = f"sha256={sig}"
+    try:
+        response = await app_state.http_client.post(
+            url,
+            content=body,
+            headers=headers,
+            timeout=httpx.Timeout(5.0),
+        )
+        return WebhookTestResult(
+            status_code=response.status_code, ok=response.is_success
+        )
+    except Exception as exc:  # noqa: BLE001
+        return WebhookTestResult(error=str(exc))
 
 
 class ApiKeyInfo(BaseModel):

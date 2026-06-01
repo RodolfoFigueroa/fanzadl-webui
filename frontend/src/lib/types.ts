@@ -50,6 +50,9 @@ export interface AppSettings {
     library_refresh_cron: string;
     auto_download_new_items: boolean;
     auto_download_missing_parts: boolean;
+    webhook_url: string | null;
+    webhook_secret_configured: boolean;
+    webhook_events: string[];
 }
 
 export interface AppSettingsPatch {
@@ -63,6 +66,9 @@ export interface AppSettingsPatch {
     library_refresh_cron?: string;
     auto_download_new_items?: boolean;
     auto_download_missing_parts?: boolean;
+    webhook_url?: string | null;
+    webhook_secret?: string | null;
+    webhook_events?: string[];
 }
 
 export interface ApiKeyInfo {

@@ -23,6 +23,18 @@ class AppConfig(BaseModel):
     library_refresh_cron: str = "0 0 * * *"
     auto_download_new_items: bool = False
     auto_download_missing_parts: bool = False
+    webhook_url: str | None = None
+    webhook_secret: str | None = None
+    webhook_events: list[str] = Field(
+        default_factory=lambda: [
+            "job_created",
+            "job_completed",
+            "job_failed",
+            "job_cancelled",
+            "item_added",
+            "item_expired",
+        ]
+    )
 
 
 def save_config(path: Path, config: AppConfig) -> None:

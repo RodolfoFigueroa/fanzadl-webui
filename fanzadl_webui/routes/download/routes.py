@@ -32,6 +32,7 @@ from fanzadl_webui.routes.download.runner import (
     cancel_active_jobs,
 )
 from fanzadl_webui.state import AppState
+from fanzadl_webui.webhook import fire_webhook
 
 router = APIRouter()
 
@@ -118,6 +119,20 @@ async def start_download(  # noqa: PLR0913
     jobs[job.job_id] = job
     queues[job.job_id] = []
     _publish_job_created(job, job_created_queues)
+    _wh_task = asyncio.create_task(
+        fire_webhook(
+            app_state,
+            "job_created",
+            {
+                "job_id": job.job_id,
+                "output_name": job.output_name,
+                "content_id": job.content_id,
+                "source": job.source,
+            },
+        )
+    )
+    app_state.background_tasks.add(_wh_task)
+    _wh_task.add_done_callback(app_state.background_tasks.discard)
     concurrency = _ConcurrencyContext(
         jobs=jobs,
         condition=condition,
@@ -285,6 +300,7 @@ async def delete_jobs(
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],
     condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> None:
     """Bulk-cancel or delete jobs matching job_filter.
@@ -304,7 +320,7 @@ async def delete_jobs(
             jobs.
     """
     if job_filter == "active":
-        await cancel_active_jobs(jobs, queues, condition)
+        await cancel_active_jobs(jobs, queues, condition, app_state)
         return
 
     if job_filter == "done":
@@ -326,6 +342,7 @@ async def cancel_or_delete_job(
     jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
     queues: Annotated[Queues, Depends(get_queues)],
     condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> None:
     """Cancel an active job or delete a finished one by ID.
@@ -359,6 +376,19 @@ async def cancel_or_delete_job(
         proc.terminate()
     _publish(job, queues)
     _close_streams(job_id, queues)
+    _wh_task = asyncio.create_task(
+        fire_webhook(
+            app_state,
+            "job_cancelled",
+            {
+                "job_id": job.job_id,
+                "output_name": job.output_name,
+                "content_id": job.content_id,
+            },
+        )
+    )
+    app_state.background_tasks.add(_wh_task)
+    _wh_task.add_done_callback(app_state.background_tasks.discard)
     async with condition:
         condition.notify_all()
 
