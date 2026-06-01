@@ -3,6 +3,9 @@ import cronstrue from 'cronstrue';
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import {
+    changeAppPassword,
+    connectFanza,
+    disconnect,
     getApiKey,
     getCachedSettings,
     getSettings,
@@ -25,7 +28,8 @@ type Tab =
     | 'logging'
     | 'schedule'
     | 'webhook'
-    | 'api';
+    | 'api'
+    | 'fanza';
 let activeTab = $state<Tab>('download');
 
 async function handleLogout() {
@@ -33,6 +37,45 @@ async function handleLogout() {
         await logout();
     } finally {
         goto('/login');
+    }
+}
+
+let disconnectConfirming = $state(false);
+let disconnecting = $state(false);
+let disconnectError = $state('');
+
+let fanzaConnected = $state(getCachedSettings()?.fanza_connected ?? false);
+let fanzaUserId = $state<string | null>(
+    getCachedSettings()?.fanza_user_id ?? null,
+);
+
+let fanzaEmail = $state('');
+let fanzaPassword = $state('');
+let fanzaConnecting = $state(false);
+let fanzaConnectError = $state('');
+
+let currentPassword = $state('');
+let newPassword = $state('');
+let confirmPassword = $state('');
+let passwordSaving = $state(false);
+let passwordError = $state('');
+let passwordSuccess = $state(false);
+
+async function handleDisconnect() {
+    if (!disconnectConfirming) {
+        disconnectConfirming = true;
+        return;
+    }
+    disconnectConfirming = false;
+    disconnecting = true;
+    disconnectError = '';
+    try {
+        await disconnect();
+        goto('/login');
+    } catch (e) {
+        disconnectError = e instanceof Error ? e.message : 'Disconnect failed';
+    } finally {
+        disconnecting = false;
     }
 }
 
@@ -148,6 +191,8 @@ onMount(async () => {
     webhookUrl = s.webhook_url ?? '';
     webhookSecretConfigured = s.webhook_secret_configured;
     webhookEvents = new Set(s.webhook_events);
+    fanzaConnected = s.fanza_connected;
+    fanzaUserId = s.fanza_user_id;
 
     const k = await getApiKey();
     apiKeyPreview = k.api_key_preview;
@@ -227,6 +272,7 @@ const tabs: { id: Tab; label: string }[] = [
     { id: 'schedule', label: 'Schedule' },
     { id: 'webhook', label: 'Webhooks' },
     { id: 'api', label: 'API' },
+    { id: 'fanza', label: 'Fanza' },
 ];
 
 const INVALID_CHARS = /[\\:*?"<>|]/;
@@ -992,6 +1038,189 @@ let cronResult = $derived.by<CronResult>(() => {
                 {#if apiKeyError}
                     <p class="text-xs text-red-400 mt-1">{apiKeyError}</p>
                 {/if}
+            </div>
+
+        {:else if activeTab === 'fanza'}
+            <div>
+                <p class="text-sm font-medium text-th-text-muted mb-1">Fanza account</p>
+                {#if fanzaConnected}
+                    <p class="text-xs text-th-text-dim mb-3">
+                        Connected as <span class="text-th-text font-mono">{fanzaUserId}</span>
+                    </p>
+                    {#if disconnectConfirming}
+                        <div class="space-y-2">
+                            <p class="text-xs text-amber-400">This will cancel all downloads and wipe the library. Are you sure?</p>
+                            <div class="flex gap-2">
+                                <button
+                                    onclick={handleDisconnect}
+                                    disabled={disconnecting}
+                                    class="px-3 py-1.5 text-xs rounded-lg border border-red-800 text-red-400
+                                        hover:bg-red-900/20 transition-colors disabled:opacity-40 whitespace-nowrap"
+                                >
+                                    {disconnecting ? 'Disconnecting…' : 'Confirm disconnect'}
+                                </button>
+                                <button
+                                    onclick={() => (disconnectConfirming = false)}
+                                    class="px-3 py-1.5 text-xs rounded-lg border border-th-border
+                                        text-th-text-dim hover:text-th-text transition-colors whitespace-nowrap"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    {:else}
+                        <button
+                            onclick={handleDisconnect}
+                            class="px-3 py-2 text-sm rounded-lg border border-th-border
+                                hover:border-red-800 text-th-text-dim hover:text-red-400
+                                transition-colors"
+                        >
+                            Disconnect Fanza account
+                        </button>
+                    {/if}
+                    {#if disconnectError}
+                        <p class="text-xs text-red-400 mt-1">{disconnectError}</p>
+                    {/if}
+                {:else}
+                    <p class="text-xs text-th-text-dim mb-3">Not connected. Enter your Fanza credentials to connect.</p>
+                    <div class="flex flex-col gap-3">
+                        <div class="flex flex-col gap-1">
+                            <label for="fanza-email" class="text-xs font-medium text-th-text-muted">Email</label>
+                            <input
+                                id="fanza-email"
+                                type="email"
+                                bind:value={fanzaEmail}
+                                autocomplete="email"
+                                disabled={fanzaConnecting}
+                                class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
+                                    focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
+                                    transition-shadow disabled:opacity-50"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label for="fanza-password" class="text-xs font-medium text-th-text-muted">Password</label>
+                            <input
+                                id="fanza-password"
+                                type="password"
+                                bind:value={fanzaPassword}
+                                autocomplete="current-password"
+                                disabled={fanzaConnecting}
+                                class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
+                                    focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
+                                    transition-shadow disabled:opacity-50"
+                            />
+                        </div>
+                        {#if fanzaConnectError}
+                            <p class="text-xs text-red-400">{fanzaConnectError}</p>
+                        {/if}
+                        <div>
+                            <button
+                                onclick={async () => {
+                                    fanzaConnecting = true;
+                                    fanzaConnectError = '';
+                                    try {
+                                        await connectFanza(fanzaEmail, fanzaPassword);
+                                        const s = await getSettings();
+                                        fanzaConnected = s.fanza_connected;
+                                        fanzaUserId = s.fanza_user_id;
+                                        fanzaEmail = '';
+                                        fanzaPassword = '';
+                                    } catch (e) {
+                                        fanzaConnectError = e instanceof Error ? e.message : 'Connect failed';
+                                    } finally {
+                                        fanzaConnecting = false;
+                                    }
+                                }}
+                                disabled={fanzaConnecting || !fanzaEmail.trim() || !fanzaPassword.trim()}
+                                class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
+                                    text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
+                            >
+                                {fanzaConnecting ? 'Connecting…' : 'Connect'}
+                            </button>
+                        </div>
+                    </div>
+                {/if}
+            </div>
+
+            <div class="border-t border-th-border pt-4">
+                <p class="text-sm font-medium text-th-text-muted mb-1.5">App password</p>
+                <p class="text-xs text-th-text-dim mb-3">Change the password used to log in to this app.</p>
+                <div class="flex flex-col gap-3">
+                    <div class="flex flex-col gap-1">
+                        <label for="current-password" class="text-xs font-medium text-th-text-muted">Current password</label>
+                        <input
+                            id="current-password"
+                            type="password"
+                            bind:value={currentPassword}
+                            autocomplete="current-password"
+                            disabled={passwordSaving}
+                            class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
+                                focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
+                                transition-shadow disabled:opacity-50"
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label for="new-password" class="text-xs font-medium text-th-text-muted">New password</label>
+                        <input
+                            id="new-password"
+                            type="password"
+                            bind:value={newPassword}
+                            autocomplete="new-password"
+                            disabled={passwordSaving}
+                            class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
+                                focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
+                                transition-shadow disabled:opacity-50"
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label for="confirm-password" class="text-xs font-medium text-th-text-muted">Confirm new password</label>
+                        <input
+                            id="confirm-password"
+                            type="password"
+                            bind:value={confirmPassword}
+                            autocomplete="new-password"
+                            disabled={passwordSaving}
+                            class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
+                                focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
+                                transition-shadow disabled:opacity-50"
+                        />
+                    </div>
+                    {#if passwordError}
+                        <p class="text-xs text-red-400">{passwordError}</p>
+                    {/if}
+                    {#if passwordSuccess}
+                        <p class="text-xs text-green-400">Password changed successfully.</p>
+                    {/if}
+                    <div>
+                        <button
+                            onclick={async () => {
+                                if (newPassword !== confirmPassword) {
+                                    passwordError = 'New passwords do not match.';
+                                    return;
+                                }
+                                passwordSaving = true;
+                                passwordError = '';
+                                passwordSuccess = false;
+                                try {
+                                    await changeAppPassword(currentPassword, newPassword);
+                                    currentPassword = '';
+                                    newPassword = '';
+                                    confirmPassword = '';
+                                    passwordSuccess = true;
+                                } catch (e) {
+                                    passwordError = e instanceof Error ? e.message : 'Failed to change password';
+                                } finally {
+                                    passwordSaving = false;
+                                }
+                            }}
+                            disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}
+                            class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
+                                text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
+                        >
+                            {passwordSaving ? 'Saving…' : 'Change password'}
+                        </button>
+                    </div>
+                </div>
             </div>
         {/if}
 

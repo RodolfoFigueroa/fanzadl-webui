@@ -4,9 +4,9 @@ import os
 import secrets
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
-from datetime import datetime
 from pathlib import Path
 
+import bcrypt
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fanzadl.exceptions import AuthExpiredError
@@ -25,7 +25,6 @@ from fanzadl_webui.dependencies import (
     JAVSTASH_KEY_PATH,
     LIBRARY_DB_PATH,
     LOCAL_API_KEY_PATH,
-    SESSION_STORE_PATH,
     TOKEN_STORE_PATH,
 )
 from fanzadl_webui.filename import rescan_and_store
@@ -49,7 +48,6 @@ from fanzadl_webui.scheduler import schedule_library_refresh
 from fanzadl_webui.state import AppState
 from fanzadl_webui.store.api_key import load_api_key, save_api_key
 from fanzadl_webui.store.config import AppConfig, load_config, save_config
-from fanzadl_webui.store.session import load_sessions, save_sessions
 from fanzadl_webui.store.token import delete_tokens, load_tokens, save_tokens
 
 _MAX_BODY_BYTES = 64 * 1024  # 64 KB
@@ -80,7 +78,6 @@ def _make_persistence_handlers(
     Callable[[str, str], None],
     Callable[[str], None],
     Callable[[str], None],
-    Callable[[dict[str, datetime]], None],
     str | None,
     str,
     bool,
@@ -96,9 +93,6 @@ def _make_persistence_handlers(
 
         def save_local_api_key_fn(api_key: str) -> None:
             save_api_key(LOCAL_API_KEY_PATH, enc_key, api_key)
-
-        def save_sessions_fn(sessions: dict[str, datetime]) -> None:
-            save_sessions(SESSION_STORE_PATH, enc_key, sessions)
 
         javstash_api_key = load_api_key(JAVSTASH_KEY_PATH, enc_key)
         local_api_key = load_api_key(LOCAL_API_KEY_PATH, enc_key)
@@ -117,9 +111,6 @@ def _make_persistence_handlers(
         def save_local_api_key_fn(api_key: str) -> None:
             pass
 
-        def save_sessions_fn(sessions: dict[str, datetime]) -> None:
-            pass
-
         javstash_api_key = None
         local_api_key = secrets.token_urlsafe(32)
         local_api_key_persisted = False
@@ -128,7 +119,6 @@ def _make_persistence_handlers(
         save_fn,
         save_api_key_fn,
         save_local_api_key_fn,
-        save_sessions_fn,
         javstash_api_key,
         local_api_key,
         local_api_key_persisted,
@@ -142,7 +132,6 @@ def _init_app_state(  # noqa: PLR0913
     save_fn: Callable[[str, str], None],
     save_api_key_fn: Callable[[str], None],
     save_local_api_key_fn: Callable[[str], None],
-    save_sessions_fn: Callable[[dict[str, datetime]], None],
     javstash_api_key: str | None,
     local_api_key: str,
     local_api_key_persisted: bool,  # noqa: FBT001
@@ -168,7 +157,6 @@ def _init_app_state(  # noqa: PLR0913
         save_fn=save_fn,
         save_api_key_fn=save_api_key_fn,
         save_local_api_key_fn=save_local_api_key_fn,
-        save_sessions_fn=save_sessions_fn,
         javstash_api_key=javstash_api_key,
         javstash_enabled=javstash_api_key is not None,
         local_api_key=local_api_key,
@@ -215,7 +203,6 @@ async def _try_restore_session(
         await asyncio.to_thread(manager.update_library)
         state = app.state.app_state
         state.manager = manager
-        state.sessions = load_sessions(SESSION_STORE_PATH, enc_key)
         await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
         await rescan_and_store(state)
         for coro in (
@@ -241,6 +228,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     default_log_level = os.environ.get("DEFAULT_LOG_LEVEL", "INFO").upper()
     config = _load_or_create_config(default_log_level)
+    if config.app_password_hash is None:
+        plaintext = secrets.token_urlsafe(12)
+        hashed = bcrypt.hashpw(plaintext.encode(), bcrypt.gensalt()).decode()
+        config = config.model_copy(update={"app_password_hash": hashed})
+        save_config(CONFIG_PATH, config)
+        logger.warning("App password generated: %s", plaintext)
     _setup_logging(default_log_level, config)
     enc_key_str = os.environ.get("TOKEN_ENCRYPTION_KEY")
     notification_handler: NotificationHandler | None = None
@@ -248,7 +241,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         save_fn,
         save_api_key_fn,
         save_local_api_key_fn,
-        save_sessions_fn,
         javstash_api_key,
         local_api_key,
         local_api_key_persisted,
@@ -264,7 +256,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             save_fn,
             save_api_key_fn,
             save_local_api_key_fn,
-            save_sessions_fn,
             javstash_api_key,
             local_api_key,
             local_api_key_persisted,

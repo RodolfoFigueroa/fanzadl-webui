@@ -22,6 +22,7 @@ let library = $state<LibraryItem[]>(_cached ? Object.values(_cached) : []);
 let expiredLibrary = $state<LibraryItem[]>([]);
 let loading = $state(_cached === null);
 let error = $state('');
+let fanzaNotConnected = $state(false);
 let refreshing = $state(false);
 let selectedItem = $state<LibraryItem | null>(null);
 let javstashEnabled = $state(false);
@@ -114,11 +115,16 @@ const filteredExpiredLibrary = $derived(
 
 async function loadLibrary() {
     error = '';
+    fanzaNotConnected = false;
     try {
         const data = await getLibrary();
         library = Object.values(data);
     } catch (e) {
-        error = e instanceof Error ? e.message : 'Failed to load library';
+        if (e instanceof Error && e.message === 'fanza_not_connected') {
+            fanzaNotConnected = true;
+        } else {
+            error = e instanceof Error ? e.message : 'Failed to load library';
+        }
     } finally {
         loading = false;
     }
@@ -328,6 +334,13 @@ onDestroy(() => {
 				</div>
 			</div>
 		{/each}
+	</div>
+{:else if fanzaNotConnected}
+	<div class="flex flex-col items-center gap-3 mt-24 text-center">
+		<p class="text-th-text-muted text-lg">Fanza account not connected.</p>
+		<p class="text-sm text-th-text-dim">
+			Go to <a href="/settings" class="text-th-text underline hover:text-th-brand transition-colors">Settings → Fanza</a> to connect your account.
+		</p>
 	</div>
 {:else if error}
 	<div

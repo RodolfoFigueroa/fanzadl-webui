@@ -53,6 +53,8 @@ export interface AppSettings {
     webhook_url: string | null;
     webhook_secret_configured: boolean;
     webhook_events: string[];
+    fanza_connected: boolean;
+    fanza_user_id: string | null;
 }
 
 export interface AppSettingsPatch {

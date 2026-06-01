@@ -43,7 +43,6 @@ class HistoryDeleteRequest(BaseModel):
 
 @router.get(
     "/history/",
-    response_model=HistoryPage,
     dependencies=[Depends(require_api_key)],
 )
 async def list_history(

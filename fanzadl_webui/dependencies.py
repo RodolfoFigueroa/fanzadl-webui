@@ -1,5 +1,5 @@
 import secrets
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -11,7 +11,6 @@ from fanzadl_webui.state import AppState
 DOWNLOAD_DIR = Path("/download")
 IMAGE_CACHE_DIR = Path("/data/image_cache")
 TOKEN_STORE_PATH = Path("/data/tokens.enc")
-SESSION_STORE_PATH = Path("/data/sessions.enc")
 LIBRARY_DB_PATH = Path("/data/library.db")
 HISTORY_DB_PATH = Path("/data/history.db")
 JAVSTASH_KEY_PATH = Path("/data/javstash_api_key.enc")
@@ -27,8 +26,8 @@ def get_manager(request: Request) -> FanzaDLManager:
     app_state = get_app_state(request)
     if app_state.manager is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="fanza_not_connected",
         )
     return app_state.manager
 
@@ -45,6 +44,9 @@ def require_api_key(
     if session is not None:
         expiry = app_state.sessions.get(session)
         if expiry is not None and datetime.now(UTC) < expiry:
+            # Sliding expiry: reset the TTL if less than 12 hours remain.
+            if expiry - datetime.now(UTC) < timedelta(hours=12):
+                app_state.sessions[session] = datetime.now(UTC) + timedelta(hours=24)
             return
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
