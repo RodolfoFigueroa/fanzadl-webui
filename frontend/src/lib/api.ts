@@ -5,7 +5,6 @@ import type {
     AppSettings,
     AppSettingsPatch,
     DownloadJob,
-    HistoryItem,
     HistoryPage,
     LibraryEvent,
     LibraryItem,
@@ -29,6 +28,18 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
             void goto('/login');
             throw new Error('Unauthenticated');
         }
+        if (response.status === 503) {
+            const text = await response.text();
+            let detail: string | undefined;
+            try {
+                const json = JSON.parse(text) as { detail?: string };
+                detail =
+                    typeof json.detail === 'string' ? json.detail : undefined;
+            } catch {
+                // ignore
+            }
+            throw new Error(detail ?? 'Service unavailable');
+        }
         const text = await response.text();
         let message: string;
         try {
@@ -50,15 +61,39 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     return response.json() as Promise<T>;
 }
 
-export async function login(email: string, password: string): Promise<void> {
+export async function login(password: string): Promise<void> {
     await apiFetch('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ password }),
     });
 }
 
 export async function logout(): Promise<void> {
     await apiFetch('/api/auth/logout', { method: 'POST' });
+}
+
+export async function connectFanza(
+    email: string,
+    password: string,
+): Promise<void> {
+    await apiFetch('/api/settings/fanza/connect', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+    });
+}
+
+export async function disconnect(): Promise<void> {
+    await apiFetch('/api/settings/fanza/disconnect', { method: 'DELETE' });
+}
+
+export async function changeAppPassword(
+    current_password: string,
+    new_password: string,
+): Promise<void> {
+    await apiFetch('/api/settings/app-password', {
+        method: 'PATCH',
+        body: JSON.stringify({ current_password, new_password }),
+    });
 }
 
 let _libraryCache: Record<string, LibraryItem> | null = null;

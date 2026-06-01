@@ -3,7 +3,6 @@ import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import { getSettings, login } from '$lib/api';
 
-let email = $state('');
 let password = $state('');
 let error = $state<string | null>(null);
 let loading = $state(false);
@@ -22,7 +21,7 @@ async function handleSubmit(e: Event) {
     error = null;
     loading = true;
     try {
-        await login(email, password);
+        await login(password);
         goto('/');
     } catch (err) {
         error = err instanceof Error ? err.message : 'Login failed';
@@ -46,25 +45,9 @@ async function handleSubmit(e: Event) {
         <form onsubmit={handleSubmit} class="flex flex-col gap-4">
             <div class="flex flex-col gap-1">
                 <label
-                    for="email"
-                    class="text-sm font-medium text-th-text-muted">Email</label
-                >
-                <input
-                    id="email"
-                    type="email"
-                    bind:value={email}
-                    required
-                    autocomplete="email"
-                    class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
-                        focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                        transition-shadow"
-                />
-            </div>
-            <div class="flex flex-col gap-1">
-                <label
                     for="password"
                     class="text-sm font-medium text-th-text-muted"
-                    >Password</label
+                    >App Password</label
                 >
                 <input
                     id="password"

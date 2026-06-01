@@ -39,7 +39,6 @@ class AppState:
     save_fn: Callable[[str, str], None]
     save_api_key_fn: Callable[[str], None]
     save_local_api_key_fn: Callable[[str], None]
-    save_sessions_fn: Callable[[dict[str, datetime]], None]
     javstash_api_key: str | None
     javstash_enabled: bool
     local_api_key: str

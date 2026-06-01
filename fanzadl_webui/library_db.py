@@ -186,7 +186,7 @@ def delete_all(path: Path) -> None:
     """
     try:
         conn = _get_conn(path)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return
     try:
         with conn:
@@ -206,7 +206,7 @@ def get_unavailable_items(path: Path) -> list[dict]:
     """
     try:
         conn = _get_conn(path)
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("Failed to open library DB", exc_info=True)
         return []
     try:
@@ -236,7 +236,7 @@ def delete_unavailable_item(path: Path, mylibrary_id: int) -> bool:
     """
     try:
         conn = _get_conn(path)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
     try:
         with conn:
@@ -258,12 +258,12 @@ def mark_item_unavailable(path: Path, mylibrary_id: int) -> None:
     """
     try:
         conn = _get_conn(path)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return
     try:
         with conn:
             conn.execute(
-                "UPDATE library SET available = 0, video_list_json = NULL WHERE mylibrary_id = ?",
+                "UPDATE library SET available = 0, video_list_json = NULL WHERE mylibrary_id = ?",  # noqa: E501
                 (mylibrary_id,),
             )
     finally:

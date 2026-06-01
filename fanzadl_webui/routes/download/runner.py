@@ -34,7 +34,7 @@ _SIZE_MULTIPLIERS: dict[str, int] = {
 }
 
 
-def _try_put(q: asyncio.Queue[Any], item: Any) -> None:
+def _try_put(q: asyncio.Queue[Any], item: Any) -> None:  # noqa: ANN401
     """Put item onto q, evicting the oldest entry if the queue is full."""
     if q.full():
         with contextlib.suppress(asyncio.QueueEmpty):

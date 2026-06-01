@@ -4,27 +4,39 @@ import hmac
 import json
 import logging
 import secrets
+import time
 from datetime import UTC, datetime
 from typing import Annotated
 
+import bcrypt
 import httpx
 from apscheduler.triggers.cron import CronTrigger
+from fanzadl.exceptions import MalformedEmailError, WrongCredentialsError
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import AnyHttpUrl, BaseModel, Field, SecretStr
 
 from fanzadl_webui.dependencies import (
+    IMAGE_CACHE_DIR,
     JAVSTASH_KEY_PATH,
     LIBRARY_DB_PATH,
+    TOKEN_STORE_PATH,
     get_app_state,
     require_api_key,
 )
-from fanzadl_webui.library_db import save_library_db, update_javstash_info_db
-from fanzadl_webui.manager import warm_all_details
+from fanzadl_webui.library_db import (
+    delete_all,
+    save_library_db,
+    update_javstash_info_db,
+)
+from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
+from fanzadl_webui.routes import images
 from fanzadl_webui.routes._utils import _fire_background
+from fanzadl_webui.routes.download import cancel_active_jobs
 from fanzadl_webui.scheduler import schedule_library_refresh, unschedule_library_refresh
 from fanzadl_webui.state import AppState
 from fanzadl_webui.store.api_key import delete_api_key
-from fanzadl_webui.store.config import AppConfig, LogLevel, save_config
+from fanzadl_webui.store.config import AppConfig, LogLevel, load_config, save_config
+from fanzadl_webui.store.token import delete_tokens
 
 router = APIRouter()
 
@@ -49,6 +61,8 @@ class AppSettings(BaseModel):
     webhook_url: str | None
     webhook_secret_configured: bool
     webhook_events: list[str]
+    fanza_connected: bool
+    fanza_user_id: str | None
 
     @classmethod
     def from_state(cls, app_state: AppState) -> "AppSettings":
@@ -66,6 +80,10 @@ class AppSettings(BaseModel):
             webhook_url=app_state.webhook_url,
             webhook_secret_configured=app_state.webhook_secret is not None,
             webhook_events=app_state.webhook_events,
+            fanza_connected=app_state.manager is not None,
+            fanza_user_id=app_state.manager.user_id
+            if app_state.manager is not None
+            else None,
         )
 
 
@@ -291,3 +309,133 @@ def rotate_api_key(
         api_key_preview=new_key[:8] + "...",
         persisted=app_state.local_api_key_persisted,
     )
+
+
+_FANZA_RATE_LIMIT_WINDOW = 60.0
+_FANZA_RATE_LIMIT_MAX = 10
+_fanza_attempts: dict[str, list[float]] = {}
+_fanza_rate_lock = asyncio.Lock()
+
+
+class FanzaConnectRequest(BaseModel):
+    email: str
+    password: str
+
+
+@router.post("/settings/fanza/connect")
+async def connect_fanza(
+    request: Request,
+    body: FanzaConnectRequest,
+    app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> dict:
+    ip = request.client.host if request.client else "unknown"
+    async with _fanza_rate_lock:
+        now = time.monotonic()
+        window_start = now - _FANZA_RATE_LIMIT_WINDOW
+        recent = [t for t in _fanza_attempts.get(ip, []) if t > window_start]
+        if len(recent) >= _FANZA_RATE_LIMIT_MAX:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many connect attempts. Please try again later.",
+            )
+        _fanza_attempts[ip] = recent
+
+    try:
+        manager = await asyncio.to_thread(
+            PersistingFanzaDLManager,
+            email=body.email,
+            password=body.password,
+            save_fn=app_state.save_fn,
+            javstash_api_key=app_state.javstash_api_key,
+            library_db_path=LIBRARY_DB_PATH,
+            auto_populate_library=False,
+        )
+        await asyncio.to_thread(manager.update_library)
+    except WrongCredentialsError as exc:
+        async with _fanza_rate_lock:
+            _fanza_attempts.setdefault(ip, []).append(time.monotonic())
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect Fanza email or password.",
+        ) from exc
+    except MalformedEmailError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Malformed email address.",
+        ) from exc
+
+    async with _fanza_rate_lock:
+        _fanza_attempts.pop(ip, None)
+
+    app_state.manager = manager
+    await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
+
+    async def _warm_and_save(m: PersistingFanzaDLManager) -> None:
+        restored = m._ids_restored_from_cache  # noqa: SLF001
+        new_ids = set(m.library) - restored
+        await warm_all_details(m, item_ids=new_ids)
+        await asyncio.to_thread(
+            save_library_db,
+            LIBRARY_DB_PATH,
+            m.user_id,
+            m,
+            new_ids,
+        )
+        m._ids_restored_from_cache = set()  # noqa: SLF001
+
+    for coro in (
+        images.precache_all(manager, app_state.http_client, IMAGE_CACHE_DIR),
+        _warm_and_save(manager),
+    ):
+        task = asyncio.create_task(coro)
+        app_state.background_tasks.add(task)
+        task.add_done_callback(app_state.background_tasks.discard)
+
+    return {"status": "ok"}
+
+
+class AppPasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.patch("/settings/app-password")
+async def change_app_password(
+    body: AppPasswordChangeRequest,
+    app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> dict:
+    config = await asyncio.to_thread(load_config, app_state.config_path)
+    if config.app_password_hash is None or not bcrypt.checkpw(
+        body.current_password.encode(), config.app_password_hash.encode()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect.",
+        )
+    new_hash = bcrypt.hashpw(body.new_password.encode(), bcrypt.gensalt()).decode()
+    updated = config.model_copy(update={"app_password_hash": new_hash})
+    await asyncio.to_thread(save_config, app_state.config_path, updated)
+    return {"status": "ok"}
+
+
+@router.delete("/settings/fanza/disconnect")
+async def disconnect_fanza(
+    app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> dict:
+    for task in list(app_state.background_tasks):
+        task.cancel()
+    app_state.background_tasks.clear()
+
+    await cancel_active_jobs(app_state)
+
+    app_state.jobs.clear()
+    app_state.queues.clear()
+
+    delete_tokens(TOKEN_STORE_PATH)
+    delete_all(LIBRARY_DB_PATH)
+    app_state.manager = None
+
+    return {"status": "ok"}

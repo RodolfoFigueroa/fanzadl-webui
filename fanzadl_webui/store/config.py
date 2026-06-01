@@ -35,6 +35,7 @@ class AppConfig(BaseModel):
             "item_expired",
         ]
     )
+    app_password_hash: str | None = None
 
 
 def save_config(path: Path, config: AppConfig) -> None:

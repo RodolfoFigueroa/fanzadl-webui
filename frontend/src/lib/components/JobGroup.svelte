@@ -61,7 +61,7 @@ let barAnimated = $derived(
 );
 
 // ── handlers ────────────────────────────────────────────────────────────────
-function toggleCollapsed(e: MouseEvent) {
+function toggleCollapsed(_e: MouseEvent) {
     collapsed = !collapsed;
 }
 
