@@ -35,6 +35,8 @@ let addedDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 type SortField = 'title' | 'purchase_date' | 'parts' | 'expire' | 'content_id';
 let sortField = $state<SortField>('purchase_date');
 let sortAsc = $state(false);
+let searchQuery = $state('');
+let contentTypeFilter = $state<'all' | 'video' | 'vr'>('all');
 
 function daysLeft(expireStr: string): number {
     const today = new Date();
@@ -81,6 +83,33 @@ const sortedExpiredLibrary = $derived(
         }
         return sortAsc ? cmp : -cmp;
     }),
+);
+
+const _queryLower = $derived(searchQuery.trim().toLowerCase());
+const _typePresent = $derived(
+    contentTypeFilter === 'all' ||
+        library.some((i) => i.content_type === contentTypeFilter),
+);
+const _typeLabel = $derived(contentTypeFilter === 'vr' ? 'VR' : 'Video');
+const filteredLibrary = $derived(
+    sortedLibrary.filter(
+        (i) =>
+            (contentTypeFilter === 'all' ||
+                i.content_type === contentTypeFilter) &&
+            (_queryLower === '' ||
+                i.title.toLowerCase().includes(_queryLower) ||
+                i.content_id.toLowerCase().includes(_queryLower)),
+    ),
+);
+const filteredExpiredLibrary = $derived(
+    sortedExpiredLibrary.filter(
+        (i) =>
+            (contentTypeFilter === 'all' ||
+                i.content_type === contentTypeFilter) &&
+            (_queryLower === '' ||
+                i.title.toLowerCase().includes(_queryLower) ||
+                i.content_id.toLowerCase().includes(_queryLower)),
+    ),
 );
 
 async function loadLibrary() {
@@ -215,6 +244,22 @@ onDestroy(() => {
 
 {#if library.length > 0}
 	<div class="flex items-center gap-2 mb-4">
+		<input
+			type="search"
+			bind:value={searchQuery}
+			placeholder="Search…"
+			class="w-40 bg-th-input border border-th-border text-th-text text-sm rounded-lg
+				py-1.5 px-3 focus:outline-none focus:border-th-border-strong placeholder:text-th-text-dim"
+		/>
+		<select
+			bind:value={contentTypeFilter}
+			class="bg-th-input border border-th-border text-th-text text-sm rounded-lg
+				py-1.5 px-3 focus:outline-none focus:border-th-border-strong"
+		>
+			<option value="all">All types</option>
+			<option value="video">Video</option>
+			<option value="vr">VR</option>
+		</select>
 		<select
 			bind:value={sortField}
 			class="bg-th-input border border-th-border text-th-text text-sm rounded-lg
@@ -297,11 +342,21 @@ onDestroy(() => {
 			Click <strong>Refresh Library</strong> to fetch your titles from Fanza.
 		</p>
 	</div>
+{:else if filteredLibrary.length === 0}
+	<p class="text-th-text-dim text-sm mt-4">
+		{#if !_typePresent}
+			No {_typeLabel} titles in your library.
+		{:else if _queryLower !== '' && contentTypeFilter !== 'all'}
+			No {_typeLabel} results for &ldquo;{searchQuery.trim()}&rdquo;.
+		{:else}
+			No results for &ldquo;{searchQuery.trim()}&rdquo;.
+		{/if}
+	</p>
 {:else}
 	<div
 		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
 	>
-		{#each sortedLibrary as item (item.mylibrary_id)}
+		{#each filteredLibrary as item (item.mylibrary_id)}
 			<VideoCard {item} {javstashEnabled} downloadedCount={downloadCounts[item.content_id] ?? 0} activeDownloadCount={activeDownloadCounts[item.content_id] ?? 0} onDownload={(i) => (selectedItem = i)} />
 		{/each}
 	</div>
@@ -315,7 +370,7 @@ onDestroy(() => {
 	<div
 		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
 	>
-		{#each sortedExpiredLibrary as item (item.mylibrary_id)}
+		{#each filteredExpiredLibrary as item (item.mylibrary_id)}
 			<VideoCard
 				{item}
 				expired={true}
