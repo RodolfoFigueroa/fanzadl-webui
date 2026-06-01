@@ -132,7 +132,7 @@ let groupSizeInfo = $derived(() => {
         </span>
 
         <!-- Status counts -->
-        <span class="flex items-center gap-2 text-xs flex-shrink-0">
+        <span class="hidden sm:flex items-center gap-2 text-xs flex-shrink-0">
             {#if running > 0}
                 <span class="text-sakura-300">{running} downloading</span>
             {/if}

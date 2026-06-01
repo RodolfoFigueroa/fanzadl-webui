@@ -152,7 +152,7 @@ function formatBytes(n: number): string {
                         Starting…
                     {/if}
                 </span>
-                <span class="flex gap-3">
+                <span class="flex flex-wrap gap-x-3 gap-y-0.5">
                     {#if job.segments_done != null && job.segments_total != null && !isMuxing}
                         <span class="text-th-text-faint"
                             >{job.segments_done}/{job.segments_total} segs</span
