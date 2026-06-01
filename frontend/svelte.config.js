@@ -9,9 +9,9 @@ const config = {
             pages: 'dist',
             assets: 'dist',
             fallback: 'index.html',
-            strict: false
-        })
-    }
+            strict: false,
+        }),
+    },
 };
 
 export default config;

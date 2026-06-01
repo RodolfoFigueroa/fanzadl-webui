@@ -1,9 +1,10 @@
 from typing import Annotated, Literal
 
 from fanzadl import FanzaDLManager
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
-from fanzadl_webui.dependencies import get_manager
+from fanzadl_webui.dependencies import get_manager, require_api_key
+from fanzadl_webui.routes._utils import get_quality_obj
 
 router = APIRouter(prefix="/url")
 
@@ -12,15 +13,11 @@ router = APIRouter(prefix="/url")
 def get_url(
     video_id: int,
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
+    _: Annotated[None, Depends(require_api_key)],
     part: int | None = None,
     quality: Literal["highest"] = "highest",  # noqa: ARG001
 ) -> str | list[str]:
-    item = manager.library.get(video_id)
-    if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Video not found"
-        )
-    quality_obj = item.download_highest or item.stream_highest
+    quality_obj = get_quality_obj(video_id, manager)
     if part is not None:
         return quality_obj.get_url(part)
     return quality_obj.get_all_urls()

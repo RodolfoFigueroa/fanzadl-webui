@@ -7,9 +7,9 @@ services:
     env_file:
       - .env
     volumes:
-      - <YOUR_DOWNLOAD_DIR>:/download
-      - image_cache:/image_cache
+      - ${DOWNLOAD_DIR}:/download
+      - data:/data
     restart: unless-stopped
 
 volumes:
-  image_cache:
+  data:

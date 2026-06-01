@@ -1,7 +1,7 @@
 services:
   app:
     image: fanzadl-webui:latest
-    container_name: fanzadl-webui
+    container_name: fanzadl-webui-dev
     build: .
     ports:
       - "4352:4352"
@@ -10,6 +10,7 @@ services:
     volumes:
       - downloads:/download
       - image_cache:/image_cache
+      - ${DATA_BIND_PATH}:/data
     restart: unless-stopped
 
 volumes:

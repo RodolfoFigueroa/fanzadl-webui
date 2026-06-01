@@ -1,6 +1,17 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+html {
+    font-size: 20px;
+}
+
+input,
+select,
+textarea,
+button {
+    font-size: 0.875rem;
+}
 
 @theme {
     /* Base sakura palette — used for one-off accents and badges */

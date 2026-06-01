@@ -1,19 +1,31 @@
 import asyncio
+import contextlib
+import logging
 from pathlib import Path
 from typing import Annotated
 
 import httpx
 from fanzadl import FanzaDLManager
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 
-from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, get_manager
+from fanzadl_webui.dependencies import (
+    IMAGE_CACHE_DIR,
+    LIBRARY_DB_PATH,
+    get_app_state,
+    get_manager,
+    require_api_key,
+)
+from fanzadl_webui.library_db import get_unavailable_items
+from fanzadl_webui.state import AppState
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/images")
 
 
-def _cache_path(cache_dir: Path, product_id: str) -> Path:
-    return cache_dir / f"{product_id}.jpg"
+def _cache_path(cache_dir: Path, content_id: str) -> Path:
+    return cache_dir / f"{content_id}.jpg"
 
 
 async def _fetch_and_cache(
@@ -31,28 +43,42 @@ async def precache_all(
     http_client: httpx.AsyncClient,
     cache_dir: Path,
 ) -> None:
-    for item in manager.library.values():
-        dest = _cache_path(cache_dir, item.product_id)
+    all_items = list(manager.library.values())
+    for item in all_items:
+        dest = _cache_path(cache_dir, item.content_id)
         if dest.exists():
             continue
-        try:
+
+        with contextlib.suppress(Exception):
             await _fetch_and_cache(http_client, str(item.package_image_url), dest)
-        except Exception:
-            pass  # best-effort; missing images will be fetched on demand
 
 
-@router.get("/{product_id}")
+def purge_stale(manager: FanzaDLManager, cache_dir: Path) -> None:
+    known = {item.content_id for item in manager.library.values()} | {
+        row["content_id"] for row in get_unavailable_items(LIBRARY_DB_PATH)
+    }
+    for cached in cache_dir.glob("*.jpg"):
+        if cached.stem not in known:
+            cached.unlink()
+
+
+@router.get("/{content_id}")
 async def get_image(
-    product_id: str,
-    request: Request,
+    content_id: str,
+    app_state: Annotated[AppState, Depends(get_app_state)],
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
+    _: Annotated[None, Depends(require_api_key)],
 ) -> FileResponse:
-    dest = _cache_path(IMAGE_CACHE_DIR, product_id)
+    if "/" in content_id or "\\" in content_id or ".." in content_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid content ID",
+        )
+    dest = _cache_path(IMAGE_CACHE_DIR, content_id)
 
     if not dest.exists():
         item = next(
-            (i for i in manager.library.values() if i.product_id == product_id),
-            None,
+            (i for i in manager.library.values() if i.content_id == content_id), None
         )
         if item is None:
             raise HTTPException(
@@ -60,7 +86,7 @@ async def get_image(
                 detail="Image not found",
             )
         await _fetch_and_cache(
-            request.app.state.http_client,
+            app_state.http_client,
             str(item.package_image_url),
             dest,
         )

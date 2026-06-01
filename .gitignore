@@ -11,7 +11,7 @@ __pycache__/
 build/
 develop-eggs/
 dist/
-downloads/
+/downloads/
 eggs/
 .eggs/
 lib64/
@@ -365,3 +365,4 @@ vite.config.ts.timestamp-*
 
 # Extra
 *.ipynb
+logo/logo_proj.svg

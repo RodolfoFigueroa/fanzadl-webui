@@ -1,0 +1,67 @@
+import asyncio
+import uuid
+from enum import StrEnum
+from typing import Literal
+
+from pydantic import BaseModel
+
+
+class JobStatus(StrEnum):
+    pending = "pending"
+    running = "running"
+    done = "done"
+    error = "error"
+    cancelled = "cancelled"
+
+
+class DownloadJob(BaseModel):
+    job_id: str
+    status: JobStatus
+    output_name: str
+    content_id: str | None = None
+    speed: str | None = None
+    percent_done: float | None = None
+    segments_done: int | None = None
+    segments_total: int | None = None
+    bytes_downloaded: str | None = None
+    bytes_total: str | None = None
+    bytes_downloaded_raw: int | None = None
+    bytes_total_raw: int | None = None
+    file_size: int | None = None
+    output_path: str | None = None
+    error: str | None = None
+    source: Literal["manual", "auto"] = "manual"
+    bandwidth_mbps: float | None = None
+
+    @classmethod
+    def create(
+        cls,
+        output_name: str,
+        content_id: str | None = None,
+        source: Literal["manual", "auto"] = "manual",
+    ) -> "DownloadJob":
+        return cls(
+            job_id=str(uuid.uuid4()),
+            status=JobStatus.pending,
+            output_name=output_name,
+            content_id=content_id,
+            source=source,
+        )
+
+
+type Queues = dict[str, list[asyncio.Queue[DownloadJob | None]]]
+
+
+class StreamVariant(BaseModel):
+    index: int
+    bandwidth: int
+    codecs: str | None
+    uri: str | None = None
+
+
+class LibraryEvent(BaseModel):
+    type: Literal["item_added", "item_expired", "auto_queued"]
+    content_id: str
+    title: str | None = None
+    part: int | None = None
+    mylibrary_id: int | None = None
