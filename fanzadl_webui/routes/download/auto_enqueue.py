@@ -7,16 +7,12 @@ from fanzadl.models.video import LibraryItemContentsModel
 from fanzadl_webui.dependencies import DOWNLOAD_DIR
 from fanzadl_webui.events import publish_library_event
 from fanzadl_webui.filename import render_template
-from fanzadl_webui.jobs import DownloadJob, JobStatus
-from fanzadl_webui.models import LibraryEvent
-from fanzadl_webui.routes._utils import _fire_background
+from fanzadl_webui.models import DownloadJob, JobStatus, LibraryEvent
 from fanzadl_webui.routes.download.runner import (
-    _ConcurrencyContext,
-    _publish_job_created,
-    _run_download,
+    dispatch_download,
+    register_job,
 )
 from fanzadl_webui.state import AppState
-from fanzadl_webui.webhook import fire_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -100,41 +96,19 @@ async def _enqueue_part(
     save_dir_path = DOWNLOAD_DIR / output_name_path.parent
     save_dir_path.mkdir(parents=True, exist_ok=True)
 
-    job = DownloadJob.create(output_name=output_name, source="auto")
+    job = DownloadJob.create(
+        output_name=output_name, content_id=item.content_id, source="auto"
+    )
     job.bandwidth_mbps = float(bandwidth_mbps)
-    app_state.jobs[job.job_id] = job
-    app_state.queues[job.job_id] = []
-    _publish_job_created(job, app_state.job_created_queues)
-    _fire_background(
-        app_state.background_tasks,
-        fire_webhook(
-            app_state,
-            "job_created",
-            {
-                "job_id": job.job_id,
-                "output_name": job.output_name,
-                "content_id": job.content_id,
-                "source": job.source,
-            },
-        ),
-    )
-    concurrency = _ConcurrencyContext(
-        jobs=app_state.jobs,
-        condition=app_state.download_slot_condition,
-        app_state=app_state,
-    )
-    _fire_background(
-        app_state.background_tasks,
-        _run_download(
-            job,
-            video_id,
-            part,
-            stream_index,
-            str(save_dir_path),
-            output_name_path.name,
-            app_state.queues,
-            concurrency,
-        ),
+    register_job(job, app_state)
+    dispatch_download(
+        job,
+        video_id,
+        part,
+        stream_index,
+        str(save_dir_path),
+        output_name_path.name,
+        app_state,
     )
     logger.info(
         "auto-download: enqueued job for video %s (Part %s) (%s mbps)",

@@ -9,31 +9,15 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from fanzadl_webui.dependencies import DOWNLOAD_DIR, get_app_state, require_api_key
-from fanzadl_webui.jobs import (
-    DownloadJob,
-    JobStatus,
-    Queues,
-    get_download_slot_condition,
-    get_global_job_queues,
-    get_job_created_queues,
-    get_jobs,
-    get_queues,
-)
-from fanzadl_webui.routes._utils import _fire_background
+from fanzadl_webui.models import DownloadJob, JobStatus
 from fanzadl_webui.routes.download.runner import (
-    _background_tasks,
-    _close_streams,
+    _cancel_job,
     _compute_active_counts,
-    _ConcurrencyContext,
-    _processes,
-    _publish,
-    _publish_global,
-    _publish_job_created,
-    _run_download,
     cancel_active_jobs,
+    dispatch_download,
+    register_job,
 )
 from fanzadl_webui.state import AppState
-from fanzadl_webui.webhook import fire_webhook
 
 router = APIRouter()
 
@@ -74,14 +58,9 @@ def check_filename(
 
 
 @router.post("/download/")
-async def start_download(  # noqa: PLR0913
+async def start_download(
     body: DownloadRequest,
-    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
-    queues: Annotated[Queues, Depends(get_queues)],
-    condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
     app_state: Annotated[AppState, Depends(get_app_state)],
-    global_job_queues: Annotated[list, Depends(get_global_job_queues)],
-    job_created_queues: Annotated[list, Depends(get_job_created_queues)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> dict[str, str]:
     """Create a download job and dispatch it as a background task.
@@ -93,9 +72,6 @@ async def start_download(  # noqa: PLR0913
     Args:
         body: Download parameters including video ID, part, stream index, and
             output name.
-        jobs: Injected mapping of active download jobs keyed by job ID.
-        queues: Injected SSE subscriber queues keyed by job ID.
-        condition: Injected concurrency condition for download slot management.
         app_state: Injected application state.
 
     Returns:
@@ -117,41 +93,15 @@ async def start_download(  # noqa: PLR0913
     save_name = output_name_path.name
 
     job = DownloadJob.create(output_name=body.output_name, content_id=body.content_id)
-    jobs[job.job_id] = job
-    queues[job.job_id] = []
-    _publish_job_created(job, job_created_queues)
-    _fire_background(
-        app_state.background_tasks,
-        fire_webhook(
-            app_state,
-            "job_created",
-            {
-                "job_id": job.job_id,
-                "output_name": job.output_name,
-                "content_id": job.content_id,
-                "source": job.source,
-            },
-        ),
-    )
-    concurrency = _ConcurrencyContext(
-        jobs=jobs,
-        condition=condition,
-        app_state=app_state,
-        global_job_queues=global_job_queues,
-    )
-    _publish_global(_compute_active_counts(jobs), global_job_queues)
-    _fire_background(
-        _background_tasks,
-        _run_download(
-            job,
-            body.video_id,
-            body.part,
-            body.stream_index,
-            save_dir,
-            save_name,
-            queues,
-            concurrency,
-        ),
+    register_job(job, app_state)
+    dispatch_download(
+        job,
+        body.video_id,
+        body.part,
+        body.stream_index,
+        save_dir,
+        save_name,
+        app_state,
     )
 
     return {"job_id": job.job_id}
@@ -159,40 +109,33 @@ async def start_download(  # noqa: PLR0913
 
 @router.get("/jobs/")
 def list_jobs(
-    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> list[DownloadJob]:
     """Return all current download jobs.
 
-    Args:
-        jobs: Injected mapping of active download jobs keyed by job ID.
-
     Returns:
         A list of all DownloadJob entries.
     """
-    return list(jobs.values())
+    return list(app_state.jobs.values())
 
 
 @router.get("/jobs/active-counts/")
 def get_active_counts(
-    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> dict[str, int]:
     """Return a snapshot of pending/running job counts grouped by content_id.
 
-    Args:
-        jobs: Injected mapping of active download jobs keyed by job ID.
-
     Returns:
         A dict mapping content_id to the number of active jobs for that item.
     """
-    return _compute_active_counts(jobs)
+    return _compute_active_counts(app_state.jobs)
 
 
 @router.get("/jobs/global-events")
 async def global_job_events(
-    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
-    global_job_queues: Annotated[list, Depends(get_global_job_queues)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> EventSourceResponse:
     """Stream SSE events with active job counts grouped by content_id.
@@ -201,10 +144,6 @@ async def global_job_events(
     whenever any job transitions to or from an active state. Cleans up the
     subscriber queue when the client disconnects.
 
-    Args:
-        jobs: Injected mapping of active download jobs keyed by job ID.
-        global_job_queues: Injected list of subscriber queues for global events.
-
     Returns:
         An EventSourceResponse that streams serialized count dicts as JSON.
     """
@@ -212,24 +151,24 @@ async def global_job_events(
     async def event_generator() -> AsyncGenerator[dict[str, str]]:
         """Yield active-count snapshots until the client disconnects."""
         q: asyncio.Queue[dict[str, int] | None] = asyncio.Queue(maxsize=50)
-        global_job_queues.append(q)
+        app_state.global_job_queues.append(q)
         try:
-            yield {"data": json.dumps(_compute_active_counts(jobs))}
+            yield {"data": json.dumps(_compute_active_counts(app_state.jobs))}
             while True:
                 counts = await q.get()
                 if counts is None:
                     break
                 yield {"data": json.dumps(counts)}
         finally:
-            if q in global_job_queues:
-                global_job_queues.remove(q)
+            if q in app_state.global_job_queues:
+                app_state.global_job_queues.remove(q)
 
     return EventSourceResponse(event_generator())
 
 
 @router.get("/jobs/created-events")
 async def job_created_events(
-    job_created_queues: Annotated[list, Depends(get_job_created_queues)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> EventSourceResponse:
     """Stream SSE events whenever a new download job is registered.
@@ -245,7 +184,7 @@ async def job_created_events(
     async def event_generator() -> AsyncGenerator[dict[str, str]]:
         """Yield new job snapshots until the client disconnects."""
         q: asyncio.Queue[DownloadJob | None] = asyncio.Queue(maxsize=50)
-        job_created_queues.append(q)
+        app_state.job_created_queues.append(q)
         try:
             while True:
                 job = await q.get()
@@ -253,8 +192,8 @@ async def job_created_events(
                     break
                 yield {"data": job.model_dump_json()}
         finally:
-            if q in job_created_queues:
-                job_created_queues.remove(q)
+            if q in app_state.job_created_queues:
+                app_state.job_created_queues.remove(q)
 
     return EventSourceResponse(event_generator())
 
@@ -262,14 +201,13 @@ async def job_created_events(
 @router.get("/jobs/{job_id}")
 def get_job(
     job_id: str,
-    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> DownloadJob:
     """Return a single download job by ID.
 
     Args:
         job_id: UUID string identifying the requested job.
-        jobs: Injected mapping of active download jobs keyed by job ID.
 
     Returns:
         The DownloadJob matching job_id.
@@ -277,7 +215,7 @@ def get_job(
     Raises:
         HTTPException: 404 if no job with the given ID exists.
     """
-    job = jobs.get(job_id)
+    job = app_state.jobs.get(job_id)
     if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Job not found"
@@ -296,9 +234,6 @@ async def delete_jobs(
             )
         ),
     ],
-    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
-    queues: Annotated[Queues, Depends(get_queues)],
-    condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
     app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> None:
@@ -313,13 +248,10 @@ async def delete_jobs(
 
     Args:
         job_filter: Selection criterion for which jobs to act on.
-        jobs: Injected mapping of active download jobs keyed by job ID.
-        queues: Injected SSE subscriber queues keyed by job ID.
-        condition: Injected concurrency condition used when cancelling active
-            jobs.
+        app_state: Injected application state.
     """
     if job_filter == "active":
-        await cancel_active_jobs(jobs, queues, condition, app_state)
+        await cancel_active_jobs(app_state)
         return
 
     if job_filter == "done":
@@ -329,18 +261,17 @@ async def delete_jobs(
     else:  # finished
         target_statuses = {JobStatus.done, JobStatus.error, JobStatus.cancelled}
 
-    to_delete = [jid for jid, j in jobs.items() if j.status in target_statuses]
+    to_delete = [
+        jid for jid, j in app_state.jobs.items() if j.status in target_statuses
+    ]
     for jid in to_delete:
-        del jobs[jid]
-        queues.pop(jid, None)
+        del app_state.jobs[jid]
+        app_state.queues.pop(jid, None)
 
 
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_or_delete_job(
     job_id: str,
-    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
-    queues: Annotated[Queues, Depends(get_queues)],
-    condition: Annotated[asyncio.Condition, Depends(get_download_slot_condition)],
     app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> None:
@@ -353,49 +284,29 @@ async def cancel_or_delete_job(
 
     Args:
         job_id: UUID string identifying the job to act on.
-        jobs: Injected mapping of active download jobs keyed by job ID.
-        queues: Injected SSE subscriber queues keyed by job ID.
-        condition: Injected concurrency condition to notify after cancellation.
+        app_state: Injected application state.
 
     Raises:
         HTTPException: 404 if no job with the given ID exists.
     """
-    job = jobs.get(job_id)
+    job = app_state.jobs.get(job_id)
     if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Job not found"
         )
     if job.status in (JobStatus.done, JobStatus.error, JobStatus.cancelled):
-        del jobs[job_id]
-        queues.pop(job_id, None)
+        del app_state.jobs[job_id]
+        app_state.queues.pop(job_id, None)
         return
-    job.status = JobStatus.cancelled
-    proc = _processes.get(job_id)
-    if proc is not None:
-        proc.terminate()
-    _publish(job, queues)
-    _close_streams(job_id, queues)
-    _fire_background(
-        app_state.background_tasks,
-        fire_webhook(
-            app_state,
-            "job_cancelled",
-            {
-                "job_id": job.job_id,
-                "output_name": job.output_name,
-                "content_id": job.content_id,
-            },
-        ),
-    )
-    async with condition:
-        condition.notify_all()
+    _cancel_job(job, app_state.queues, app_state)
+    async with app_state.download_slot_condition:
+        app_state.download_slot_condition.notify_all()
 
 
 @router.get("/jobs/{job_id}/events")
 async def job_events(
     job_id: str,
-    jobs: Annotated[dict[str, DownloadJob], Depends(get_jobs)],
-    queues: Annotated[Queues, Depends(get_queues)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> EventSourceResponse:
     """Stream SSE events for a job until it finishes or the client disconnects.
@@ -407,8 +318,6 @@ async def job_events(
 
     Args:
         job_id: UUID string identifying the job to observe.
-        jobs: Injected mapping of active download jobs keyed by job ID.
-        queues: Injected SSE subscriber queues keyed by job ID.
 
     Returns:
         An EventSourceResponse that streams serialized DownloadJob snapshots.
@@ -416,7 +325,7 @@ async def job_events(
     Raises:
         HTTPException: 404 if no job with the given ID exists.
     """
-    job = jobs.get(job_id)
+    job = app_state.jobs.get(job_id)
     if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Job not found"
@@ -425,7 +334,7 @@ async def job_events(
     async def event_generator() -> AsyncGenerator[dict[str, str]]:
         """Yield serialized job snapshots until a None sentinel is received."""
         q: asyncio.Queue[DownloadJob | None] = asyncio.Queue(maxsize=100)
-        queues.setdefault(job_id, []).append(q)
+        app_state.queues.setdefault(job_id, []).append(q)
         try:
             # Check after appending to avoid a race between job completion
             # and queue registration.
@@ -438,10 +347,10 @@ async def job_events(
                     break
                 yield {"data": snapshot.model_dump_json()}
         finally:
-            job_queues = queues.get(job_id, [])
+            job_queues = app_state.queues.get(job_id, [])
             if q in job_queues:
                 job_queues.remove(q)
             if not job_queues:
-                queues.pop(job_id, None)
+                app_state.queues.pop(job_id, None)
 
     return EventSourceResponse(event_generator())
