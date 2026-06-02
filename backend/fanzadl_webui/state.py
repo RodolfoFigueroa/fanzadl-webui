@@ -42,6 +42,7 @@ class AppState:
     javstash_enabled: bool
     local_api_key: str
     local_api_key_persisted: bool
+    auth_disabled: bool
     scheduler: AsyncIOScheduler
     jobs: dict[str, DownloadJob] = field(default_factory=dict)
     queues: Queues = field(default_factory=dict)

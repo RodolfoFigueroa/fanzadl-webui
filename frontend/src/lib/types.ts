@@ -55,6 +55,7 @@ export interface AppSettings {
     webhook_events: string[];
     fanza_connected: boolean;
     fanza_user_id: string | null;
+    auth_disabled: boolean;
 }
 
 export interface AppSettingsPatch {
@@ -71,6 +72,7 @@ export interface AppSettingsPatch {
     webhook_url?: string | null;
     webhook_secret?: string | null;
     webhook_events?: string[];
+    auth_disabled?: boolean;
 }
 
 export interface ApiKeyInfo {

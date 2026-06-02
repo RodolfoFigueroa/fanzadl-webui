@@ -15,5 +15,10 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
         redirect(302, '/');
     }
 
-    return { authenticated };
+    const authDisabled: boolean = authenticated
+        ? (((await res.json()) as { auth_disabled: boolean }).auth_disabled ??
+          false)
+        : false;
+
+    return { authenticated, authDisabled };
 };

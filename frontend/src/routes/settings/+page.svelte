@@ -33,7 +33,8 @@ type Tab =
     | 'schedule'
     | 'webhook'
     | 'api'
-    | 'fanza';
+    | 'fanza'
+    | 'account';
 let activeTab = $state<Tab>('download');
 
 async function handleLogout() {
@@ -64,6 +65,10 @@ let confirmPassword = $state('');
 let passwordSaving = $state(false);
 let passwordError = $state('');
 let passwordSuccess = $state(false);
+
+let authDisabled = $state(getCachedSettings()?.auth_disabled ?? false);
+let authDisabledSaving = $state(false);
+let authDisabledError = $state('');
 
 async function handleDisconnect() {
     if (!disconnectConfirming) {
@@ -197,6 +202,7 @@ onMount(async () => {
     webhookEvents = new Set(s.webhook_events);
     fanzaConnected = s.fanza_connected;
     fanzaUserId = s.fanza_user_id;
+    authDisabled = s.auth_disabled;
 
     const k = await getApiKey();
     apiKeyPreview = k.api_key_preview;
@@ -277,6 +283,7 @@ const tabs: { id: Tab; label: string }[] = [
     { id: 'webhook', label: 'Webhooks' },
     { id: 'api', label: 'API' },
     { id: 'fanza', label: 'Fanza' },
+    { id: 'account', label: 'Account' },
 ];
 
 const INVALID_CHARS = /[\\:*?"<>|]/;
@@ -334,7 +341,7 @@ let cronResult = $derived.by<CronResult>(() => {
 <div class="w-full max-w-2xl mx-auto mt-6 sm:mt-16">
     <h1 class="text-2xl font-bold mb-6">Settings</h1>
 
-    <div class="flex border-b border-th-border mb-0 overflow-x-auto scrollbar-none">
+    <div class="flex flex-wrap border-b border-th-border mb-0">
         {#each tabs as tab}
             <button
                 onclick={() => (activeTab = tab.id)}
@@ -1062,6 +1069,42 @@ let cronResult = $derived.by<CronResult>(() => {
                 {/if}
             </div>
 
+        {:else if activeTab === 'account'}
+            <div>
+                <p class="text-sm font-medium text-th-text-muted mb-1.5">Authentication</p>
+                <label class="flex items-start gap-3 cursor-pointer w-fit mb-2">
+                    <FormCheckbox bind:checked={authDisabled} class="mt-0.5" />
+                    <span class="text-sm text-th-text-muted">Disable password authentication</span>
+                </label>
+                <p class="text-xs text-th-text-dim mb-2">
+                    When enabled, anyone who can reach this app can access it without a password.
+                    API key authentication is unaffected.
+                </p>
+                {#if authDisabled}
+                    <p class="text-xs text-amber-400 mb-2">
+                        Warning: the app is currently open to anyone on the network.
+                    </p>
+                {/if}
+                {#if authDisabledError}
+                    <p class="text-xs text-red-400 mb-2">{authDisabledError}</p>
+                {/if}
+                <Button
+                    onclick={async () => {
+                        authDisabledSaving = true;
+                        authDisabledError = '';
+                        try {
+                            await updateSettings({ auth_disabled: authDisabled });
+                        } catch (e) {
+                            authDisabledError = e instanceof Error ? e.message : 'Failed to save';
+                        } finally {
+                            authDisabledSaving = false;
+                        }
+                    }}
+                    loading={authDisabledSaving}
+                    loadingText="Saving…"
+                >Save</Button>
+            </div>
+
             <div class="border-t border-th-border pt-4">
                 <p class="text-sm font-medium text-th-text-muted mb-1.5">App password</p>
                 <p class="text-xs text-th-text-dim mb-3">Change the password used to log in to this app.</p>
@@ -1137,9 +1180,11 @@ let cronResult = $derived.by<CronResult>(() => {
 
     </div>
 
-    <Button
-        variant="ghost-destructive"
-        class="sm:hidden mt-4 w-full"
-        onclick={handleLogout}
-    >Logout</Button>
+    {#if !authDisabled}
+        <Button
+            variant="ghost-destructive"
+            class="sm:hidden mt-4 w-full"
+            onclick={handleLogout}
+        >Logout</Button>
+    {/if}
 </div>

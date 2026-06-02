@@ -35,6 +35,7 @@ class AppConfig(BaseModel):
         ]
     )
     app_password_hash: str | None = None
+    auth_disabled: bool = False
 
 
 def save_config(path: Path, config: AppConfig) -> None:

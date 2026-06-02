@@ -62,6 +62,7 @@ class AppSettings(BaseModel):
     webhook_events: list[str]
     fanza_connected: bool
     fanza_user_id: str | None
+    auth_disabled: bool
 
     @classmethod
     def from_state(cls, app_state: AppState) -> "AppSettings":
@@ -83,6 +84,7 @@ class AppSettings(BaseModel):
             fanza_user_id=app_state.manager.user_id
             if app_state.manager is not None
             else None,
+            auth_disabled=app_state.auth_disabled,
         )
 
 
@@ -100,6 +102,7 @@ class AppSettingsPatch(BaseModel):
     webhook_url: AnyHttpUrl | None = None
     webhook_secret: str | None = None
     webhook_events: list[str] | None = None
+    auth_disabled: bool | None = None
 
 
 class WebhookTestResult(BaseModel):
@@ -168,6 +171,7 @@ async def _save_config(app_state: AppState) -> None:
             webhook_url=app_state.webhook_url,
             webhook_secret=app_state.webhook_secret,
             webhook_events=app_state.webhook_events,
+            auth_disabled=app_state.auth_disabled,
         ),
     )
 
@@ -225,6 +229,8 @@ async def update_settings(  # noqa: C901, PLR0912
         app_state.webhook_secret = body.webhook_secret or None
     if body.webhook_events is not None:
         app_state.webhook_events = body.webhook_events
+    if body.auth_disabled is not None:
+        app_state.auth_disabled = body.auth_disabled
     _refresh_enabled = app_state.library_refresh_enabled
     _refresh_cron = app_state.library_refresh_cron
     if _refresh_enabled:

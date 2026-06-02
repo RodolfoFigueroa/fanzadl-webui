@@ -160,6 +160,7 @@ def _init_app_state(  # noqa: PLR0913
         javstash_enabled=javstash_api_key is not None,
         local_api_key=local_api_key,
         local_api_key_persisted=local_api_key_persisted,
+        auth_disabled=config.auth_disabled,
         scheduler=scheduler,
     )
 

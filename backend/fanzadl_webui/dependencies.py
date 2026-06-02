@@ -47,6 +47,8 @@ def require_api_key(
             if expiry - datetime.now(UTC) < timedelta(hours=12):
                 app_state.sessions[session] = datetime.now(UTC) + timedelta(hours=24)
             return
+    if app_state.auth_disabled:
+        return
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or missing API key",

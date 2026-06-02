@@ -25,7 +25,7 @@ let {
     children?: Snippet;
 } & Omit<
     HTMLSelectAttributes,
-    'class' | 'value' | 'disabled' | 'children' | 'id'
+    'class' | 'value' | 'disabled' | 'children' | 'id' | 'size'
 > = $props();
 
 const variantClasses: Record<Variant, string> = {

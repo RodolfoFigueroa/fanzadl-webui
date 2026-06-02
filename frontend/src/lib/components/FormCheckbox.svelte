@@ -22,7 +22,7 @@ let {
     ariaLabel?: string;
 } & Omit<
     HTMLInputAttributes,
-    'type' | 'checked' | 'disabled' | 'class'
+    'type' | 'checked' | 'disabled' | 'class' | 'size'
 > = $props();
 
 const sizeClasses: Record<Size, string> = {

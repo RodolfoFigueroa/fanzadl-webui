@@ -169,7 +169,7 @@ const navLinks = [
 			>
 				Settings
 			</a>
-			{#if page.url.pathname !== "/login"}
+			{#if page.url.pathname !== "/login" && !data.authDisabled}
 				<button
 					onclick={handleLogout}
 					style="cursor: pointer"
