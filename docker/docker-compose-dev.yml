@@ -2,17 +2,12 @@ services:
   app:
     image: fanzadl-webui:latest
     container_name: fanzadl-webui-dev
-    build: .
+    build: ..
     ports:
       - "4352:4352"
     env_file:
-      - .env
+      - ../.env
     volumes:
-      - downloads:/download
-      - image_cache:/image_cache
-      - ${DATA_BIND_PATH}:/data
+      - ${DOWNLOAD_DIR}:/download
+      - ${DATA_DIR}:/data
     restart: unless-stopped
-
-volumes:
-  downloads:
-  image_cache:
