@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.2.2...v1.3.0) (2026-06-02)
+
+
+### Features
+
+* add option to disable password auth ([731e61d](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/731e61df4c491c1e923abeaeea0153656f5d7d18))
+* move settings pages to sidebar ([1759111](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/1759111e2aff783d0b32891f29db73744b1b9270))
+
+
+### Bug Fixes
+
+* relax content policy for API docs ([64d6116](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/64d6116930a4c7cefc0975a1899480e975817162))
+
 ## [1.2.2](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.2.1...v1.2.2) (2026-06-02)
 
 
