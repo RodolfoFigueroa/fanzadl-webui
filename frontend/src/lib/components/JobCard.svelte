@@ -1,5 +1,6 @@
 <script lang="ts">
 import { stopJob } from '$lib/api';
+import Badge from '$lib/components/Badge.svelte';
 import type { DownloadJob } from '$lib/types';
 
 let {
@@ -84,11 +85,9 @@ function formatBytes(n: number): string {
                 {job.output_name}.mp4
             </p>
         </div>
-        <span
-            class="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full {cfg.classes}"
-        >
+        <Badge class="flex-shrink-0 px-2.5 py-1 {cfg.classes}">
             {cfg.label}
-        </span>
+        </Badge>
         {#if job.status === "running" || job.status === "pending"}
             <button
                 onclick={handleStop}

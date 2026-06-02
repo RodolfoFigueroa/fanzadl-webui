@@ -231,6 +231,19 @@ export async function testWebhook(url: string): Promise<{
     });
 }
 
+async function sseOnOpen(response: Response): Promise<void> {
+    if (response.status === 401) {
+        void goto('/login');
+        throw new Error('Unauthenticated');
+    }
+    const contentType = response.headers.get('content-type');
+    if (!contentType?.startsWith('text/event-stream')) {
+        throw new Error(
+            `Expected text/event-stream, got ${contentType ?? 'none'}`,
+        );
+    }
+}
+
 export function subscribeLibraryEvents(
     onMessage: (event: LibraryEvent) => void,
     onError?: (err: unknown) => void,
@@ -239,6 +252,7 @@ export function subscribeLibraryEvents(
     void fetchEventSource('/api/notifications/library', {
         signal,
         credentials: 'include',
+        onopen: sseOnOpen,
         onmessage(ev) {
             try {
                 onMessage(JSON.parse(ev.data) as LibraryEvent);
@@ -264,6 +278,7 @@ export function subscribeJobEvents(
     void fetchEventSource(`/api/jobs/${jobId}/events`, {
         signal,
         credentials: 'include',
+        onopen: sseOnOpen,
         onmessage(event) {
             try {
                 const job = JSON.parse(event.data) as DownloadJob;
@@ -292,6 +307,7 @@ export function subscribeGlobalJobEvents(
     void fetchEventSource('/api/jobs/global-events', {
         signal,
         credentials: 'include',
+        onopen: sseOnOpen,
         onmessage(event) {
             try {
                 const counts = JSON.parse(event.data) as Record<string, number>;
@@ -315,6 +331,7 @@ export function subscribeJobCreatedEvents(
     void fetchEventSource('/api/jobs/created-events', {
         signal,
         credentials: 'include',
+        onopen: sseOnOpen,
         onmessage(event) {
             try {
                 const job = JSON.parse(event.data) as DownloadJob;
@@ -343,6 +360,7 @@ export function subscribeNotifications(
     void fetchEventSource('/api/notifications/errors', {
         signal,
         credentials: 'include',
+        onopen: sseOnOpen,
         onmessage(event) {
             if (!event.data) return;
             try {
