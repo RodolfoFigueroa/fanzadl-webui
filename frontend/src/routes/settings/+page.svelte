@@ -35,7 +35,7 @@ type Tab =
     | 'api'
     | 'fanza'
     | 'account';
-let activeTab = $state<Tab>('download');
+let activeTab = $state<Tab>('fanza');
 
 async function handleLogout() {
     try {
@@ -286,15 +286,15 @@ async function handleCopyApiKey() {
 }
 
 const tabs: { id: Tab; label: string }[] = [
+    { id: 'fanza', label: 'Fanza' },
     { id: 'download', label: 'Download' },
-    { id: 'javstash', label: 'JAVStash' },
     { id: 'filenames', label: 'Filenames' },
-    { id: 'logging', label: 'Logging' },
     { id: 'schedule', label: 'Schedule' },
+    { id: 'javstash', label: 'JAVStash' },
     { id: 'webhook', label: 'Webhooks' },
     { id: 'api', label: 'API' },
-    { id: 'fanza', label: 'Fanza' },
     { id: 'account', label: 'Account' },
+    { id: 'logging', label: 'Logging' },
 ];
 
 const INVALID_CHARS = /[\\:*?"<>|]/;
