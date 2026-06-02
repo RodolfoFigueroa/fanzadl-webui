@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/images")
+router = APIRouter(prefix="/images", tags=["Images"])
 
 
 def _cache_path(cache_dir: Path, content_id: str) -> Path:
@@ -61,13 +61,38 @@ def purge_stale(manager: FanzaDLManager, cache_dir: Path) -> None:
             cached.unlink()
 
 
-@router.get("/{content_id}")
+@router.get(
+    "/{content_id}",
+    responses={
+        400: {
+            "description": "Invalid content ID (contains path-traversal characters)."
+        },
+        404: {"description": "No library item found with the given content ID."},
+        502: {"description": "Failed to fetch the image from the upstream CDN."},
+    },
+)
 async def get_image(
     content_id: str,
     app_state: Annotated[AppState, Depends(get_app_state)],
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> FileResponse:
+    """Return the cover image for a library item, fetching and caching it on first request.
+
+    Images are cached locally as ``{content_id}.jpg``. If the cached file does not
+    exist yet the image is fetched from the upstream CDN and saved before being
+    served. Subsequent requests are served directly from the local cache.
+
+    Args:
+        content_id: The Fanza content ID whose cover image to return.
+
+    Returns:
+        A JPEG image response.
+
+    Raises:
+        HTTPException: 400 if content_id contains ``/``, ``\\``, or ``..``.
+        HTTPException: 404 if no library item with that content_id is found.
+    """
     if "/" in content_id or "\\" in content_id or ".." in content_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

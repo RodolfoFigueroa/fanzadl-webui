@@ -9,21 +9,50 @@ from fanzadl_webui.download import (
 from fanzadl_webui.models import DownloadJob
 from fanzadl_webui.state import AppState
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 router = APIRouter(prefix="/download", tags=["Downloads"])
 
 
 class DownloadRequest(BaseModel):
-    output_name: str
-    video_id: int
-    part: int
-    stream_index: int
-    content_id: str | None = None
+    """Parameters for starting a new download job."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "output_name": "MyVideo/MyVideo_part1",
+                "video_id": 123456,
+                "part": 1,
+                "stream_index": 0,
+                "content_id": "mide00001",
+            }
+        }
+    )
+
+    output_name: str = Field(
+        description="Relative output path (without extension) inside the download directory. May contain subdirectory separators."
+    )
+    video_id: int = Field(
+        description="The ``mylibrary_id`` of the library item to download."
+    )
+    part: int = Field(description="The 1-based part number to download.")
+    stream_index: int = Field(
+        description="Index of the HLS variant stream to download, as returned by ``GET /streams/``."
+    )
+    content_id: str | None = Field(
+        default=None,
+        description="Fanza content ID to associate with the job for tracking purposes.",
+    )
 
 
 class FilenameCheckResponse(BaseModel):
-    file_exists: bool
+    """Result of checking whether an output filename is already in use."""
+
+    model_config = ConfigDict(json_schema_extra={"example": {"file_exists": False}})
+
+    file_exists: bool = Field(
+        description="True if a file named ``{name}.mp4`` already exists in the download directory."
+    )
 
 
 @router.get("/check-filename/")

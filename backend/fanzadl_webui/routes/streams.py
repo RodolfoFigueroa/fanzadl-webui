@@ -13,10 +13,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/streams")
+router = APIRouter(prefix="/streams", tags=["Streams"])
 
 
-@router.get("/")
+@router.get(
+    "/",
+    responses={
+        404: {
+            "description": "Video not found in the library or has no streamable quality."
+        },
+        502: {"description": "Failed to fetch the HLS master playlist from upstream."},
+    },
+)
 async def get_streams(
     video_id: int,
     manager: Annotated[FanzaDLManager, Depends(get_manager)],
@@ -25,6 +33,29 @@ async def get_streams(
     part: int | None = None,
     quality: Literal["highest"] = "highest",  # noqa: ARG001
 ) -> list[StreamVariant]:
+    """Return the available HLS stream variants for a library item.
+
+    Fetches the master playlist for the requested video and part, parses the
+    variant entries, and returns them sorted by their position in the playlist.
+    Results are cached in memory for the lifetime of the process to avoid
+    redundant upstream requests.
+
+    If the playlist URL returns a transient error (404, 429, 503), one retry
+    is attempted after a short delay.
+
+    Args:
+        video_id: The ``mylibrary_id`` of the library item.
+        part: The 1-based part number. Defaults to part 1 when omitted.
+        quality: Quality selection strategy — currently only ``"highest"`` is supported.
+
+    Returns:
+        A list of StreamVariant objects. Returns an empty list if the playlist
+        is not a master (variant) playlist.
+
+    Raises:
+        HTTPException: 404 if the video is not found or has no streamable quality.
+        HTTPException: 502 if the upstream playlist request fails.
+    """
     cache_key = (video_id, part)
     cached: list[StreamVariant] | None = app_state.stream_cache.get(cache_key)
     if cached is not None:

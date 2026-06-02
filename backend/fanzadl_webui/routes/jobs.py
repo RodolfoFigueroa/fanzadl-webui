@@ -14,7 +14,7 @@ from fanzadl_webui.state import AppState
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sse_starlette.sse import EventSourceResponse
 
-router = APIRouter(prefix="/jobs", tags=["Downloads"])
+router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
 
 @router.get("/")
@@ -108,7 +108,10 @@ async def job_created_events(
     return EventSourceResponse(event_generator())
 
 
-@router.get("/{job_id}")
+@router.get(
+    "/{job_id}",
+    responses={404: {"description": "No job with the given ID exists."}},
+)
 def get_job(
     job_id: str,
     app_state: Annotated[AppState, Depends(get_app_state)],
@@ -179,7 +182,11 @@ async def delete_jobs(
         app_state.queues.pop(jid, None)
 
 
-@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{job_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={404: {"description": "No job with the given ID exists."}},
+)
 async def cancel_or_delete_job(
     job_id: str,
     app_state: Annotated[AppState, Depends(get_app_state)],

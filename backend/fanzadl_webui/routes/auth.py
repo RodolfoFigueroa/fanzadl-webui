@@ -10,11 +10,12 @@ from fanzadl_webui.dependencies import (
     get_app_state,
     require_api_key,
 )
+from fanzadl_webui.models import StatusResponse
 from fanzadl_webui.state import AppState
 from fanzadl_webui.store.config import load_config
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
 
@@ -28,15 +29,38 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 class LoginRequest(BaseModel):
-    password: str
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"password": "mysecretpassword"}}
+    )
+
+    password: str = Field(description="The application password set in settings.")
 
 
-@router.post("/login")
+@router.post(
+    "/login",
+    response_model=StatusResponse,
+    responses={
+        401: {"description": "Incorrect password."},
+        429: {"description": "Too many login attempts from this IP."},
+    },
+)
 async def login(
     request: Request,
     body: LoginRequest,
     app_state: Annotated[AppState, Depends(get_app_state)],
 ) -> JSONResponse:
+    """Authenticate with the application password.
+
+    Issues an ``HttpOnly`` ``session`` cookie valid for 24 hours on success.
+    Login attempts per IP address are rate-limited to 10 per 60-second window.
+
+    Returns:
+        A JSON body ``{"status": "ok"}`` and sets a ``session`` cookie.
+
+    Raises:
+        HTTPException: 401 if the password is incorrect.
+        HTTPException: 429 if the rate limit for the requesting IP is exceeded.
+    """
     ip = request.client.host if request.client else "unknown"
     async with _login_rate_lock:
         now = time.monotonic()
@@ -81,12 +105,23 @@ async def login(
     return response
 
 
-@router.post("/logout")
+@router.post(
+    "/logout",
+    response_model=StatusResponse,
+)
 async def logout(
     request: Request,
     app_state: Annotated[AppState, Depends(get_app_state)],
     _: Annotated[None, Depends(require_api_key)],
 ) -> JSONResponse:
+    """Invalidate the current session.
+
+    Removes the server-side session record and instructs the browser to
+    delete the ``session`` cookie.
+
+    Returns:
+        A JSON body ``{"status": "ok"}`` and clears the ``session`` cookie.
+    """
     session_token = request.cookies.get("session")
     if session_token:
         app_state.sessions.pop(session_token, None)

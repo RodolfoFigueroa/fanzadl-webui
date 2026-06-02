@@ -7,7 +7,7 @@ from fanzadl_webui.state import AppState
 from fastapi import APIRouter, Depends, Request
 from sse_starlette.sse import EventSourceResponse
 
-router = APIRouter(prefix="/notifications")
+router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
 @router.get("/errors")
