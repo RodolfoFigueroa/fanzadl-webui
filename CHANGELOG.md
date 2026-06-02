@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.2.0...v1.2.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* persist tokens on restart ([dc409c2](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/dc409c2667401213a964f9d3ad91d76fc483c7c5))
+* prevent SSE from retrying indefinetely ([1191412](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/11914121c6879ba24bbf578a182fec0843825134))
+
 ## [1.2.0](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.1.0...v1.2.0) (2026-06-01)
 
 
