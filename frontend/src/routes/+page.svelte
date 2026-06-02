@@ -257,7 +257,7 @@ onDestroy(() => {
 			type="search"
 			bind:value={searchQuery}
 			placeholder="Search…"
-			class="flex-1 min-w-32"
+			class="flex-1 min-w-32 max-w-xs"
 		/>
 		<Select
 			bind:value={contentTypeFilter}
