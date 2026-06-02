@@ -2,6 +2,7 @@
 import { onMount } from 'svelte';
 import { deleteAllHistory, deleteHistoryItems, getHistory } from '$lib/api';
 import Badge from '$lib/components/Badge.svelte';
+import Button from '$lib/components/Button.svelte';
 import FormCheckbox from '$lib/components/FormCheckbox.svelte';
 import type { HistoryItem } from '$lib/types';
 
@@ -139,56 +140,52 @@ onMount(() => {
 });
 </script>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-4">
-	<div class="flex flex-wrap items-center justify-between gap-3">
-		<h1 class="text-xl font-semibold text-th-text">Download History</h1>
+<svelte:head>
+	<title>History — FanzaDL</title>
+</svelte:head>
+
+<div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
+	<h1 class="text-2xl font-bold">History</h1>
 
 		<div class="flex items-center gap-2 flex-wrap">
-			{#if deleteError}
-				<span class="text-xs text-red-500">{deleteError}</span>
-			{/if}
+		{#if deleteError}
+			<span class="text-xs text-red-500">{deleteError}</span>
+		{/if}
 
-			<button
-				onclick={() => handleDeleteSelected()}
-				disabled={selected.size === 0 || deleting}
-				class="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white hover:bg-red-700
-					disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-			>
-				Delete selected ({selected.size})
-			</button>
+		<Button
+			variant="ghost-destructive"
+			size="sm"
+			onclick={() => handleDeleteSelected()}
+			disabled={selected.size === 0 || deleting}
+		>Delete selected ({selected.size})</Button>
 
-			{#if confirmingDeleteAll}
-				<span class="text-sm text-th-text-muted">Are you sure?</span>
-				<button
-					onclick={() => handleDeleteAll()}
-					disabled={deleting}
-					class="px-3 py-1.5 text-sm rounded-md bg-red-700 text-white hover:bg-red-800
-						disabled:opacity-40 transition-colors"
-				>
-					Yes, delete all
-				</button>
-				<button
-					onclick={() => (confirmingDeleteAll = false)}
-					class="px-3 py-1.5 text-sm rounded-md bg-th-input text-th-text hover:bg-th-border transition-colors"
-				>
-					Cancel
-				</button>
-			{:else}
-				<button
-					onclick={() => (confirmingDeleteAll = true)}
-					disabled={deleting || total === 0}
-					class="px-3 py-1.5 text-sm rounded-md bg-th-input text-th-text hover:bg-th-border
-						disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-				>
-					Delete all
-				</button>
-			{/if}
-		</div>
+		{#if confirmingDeleteAll}
+			<span class="text-sm text-th-text-muted">Are you sure?</span>
+			<Button
+				variant="destructive"
+				size="sm"
+				onclick={() => handleDeleteAll()}
+				disabled={deleting}
+			>Yes, delete all</Button>
+			<Button
+				variant="secondary"
+				size="sm"
+				onclick={() => (confirmingDeleteAll = false)}
+			>Cancel</Button>
+		{:else}
+			<Button
+				variant="ghost-destructive"
+				size="sm"
+				onclick={() => (confirmingDeleteAll = true)}
+				disabled={deleting || total === 0}
+			>Delete all</Button>
+		{/if}
 	</div>
+</div>
 
-	<!-- Filter bar -->
-	<div
-		class="flex items-center gap-1 bg-th-input rounded-lg p-1 w-fit"
+<!-- Filter bar -->
+<div
+	class="flex items-center gap-1 bg-th-input rounded-lg p-1 w-fit mb-4"
 		role="group"
 		aria-label="Status filter"
 	>
@@ -204,18 +201,18 @@ onMount(() => {
 				{f}
 			</button>
 		{/each}
-	</div>
+</div>
 
-	{#if fetchError}
+{#if fetchError}
 		<p class="text-sm text-red-500">{fetchError}</p>
-	{:else if loading}
-		<p class="text-sm text-th-text-muted">Loading…</p>
-	{:else if items.length === 0}
-		<div class="py-16 text-center text-th-text-muted text-sm">
-			No download history yet.
-		</div>
-	{:else}
-		<div class="overflow-x-auto rounded-lg border border-th-border">
+{:else if loading}
+	<p class="text-sm text-th-text-muted">Loading…</p>
+{:else if items.length === 0}
+	<div class="py-16 text-center text-th-text-muted text-sm">
+		No download history yet.
+	</div>
+{:else}
+	<div class="overflow-x-auto rounded-lg border border-th-border">
 			<table class="min-w-full text-sm">
 				<thead class="bg-th-surface text-th-text-muted uppercase text-xs tracking-wide">
 					<tr>
@@ -305,32 +302,27 @@ onMount(() => {
 					{/each}
 				</tbody>
 			</table>
-		</div>
+	</div>
 
-		<!-- Pagination -->
-		{#if totalPages > 1}
-			<div class="flex items-center justify-center gap-3 pt-2">
-				<button
-					onclick={() => setPage(page - 1)}
-					disabled={page <= 1}
-					class="px-3 py-1.5 text-sm rounded-md bg-th-input text-th-text hover:bg-th-border
-						disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-				>
-					Previous
-				</button>
-				<span class="text-sm text-th-text-muted">
-					Page {page} of {totalPages}
-					<span class="text-th-text-dim ml-1">({total} total)</span>
-				</span>
-				<button
-					onclick={() => setPage(page + 1)}
-					disabled={page >= totalPages}
-					class="px-3 py-1.5 text-sm rounded-md bg-th-input text-th-text hover:bg-th-border
-						disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-				>
-					Next
-				</button>
-			</div>
-		{/if}
+	<!-- Pagination -->
+	{#if totalPages > 1}
+		<div class="flex items-center justify-center gap-3 pt-2">
+			<Button
+				variant="secondary"
+				size="sm"
+				onclick={() => setPage(page - 1)}
+				disabled={page <= 1}
+			>Previous</Button>
+			<span class="text-sm text-th-text-muted">
+				Page {page} of {totalPages}
+				<span class="text-th-text-dim ml-1">({total} total)</span>
+			</span>
+			<Button
+				variant="secondary"
+				size="sm"
+				onclick={() => setPage(page + 1)}
+				disabled={page >= totalPages}
+			>Next</Button>
+		</div>
 	{/if}
-</div>
+{/if}
