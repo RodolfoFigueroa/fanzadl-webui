@@ -368,6 +368,7 @@ async def connect_fanza(
     async with _fanza_rate_lock:
         _fanza_attempts.pop(ip, None)
 
+    app_state.save_fn(manager.user_id, manager.refresh_token)
     app_state.manager = manager
     await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
 
