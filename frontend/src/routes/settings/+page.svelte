@@ -338,24 +338,43 @@ let cronResult = $derived.by<CronResult>(() => {
     <title>Settings — FanzaDL</title>
 </svelte:head>
 
-<div class="w-full max-w-2xl mx-auto mt-6 sm:mt-16">
+<div class="w-full max-w-3xl mx-auto mt-6 sm:mt-16">
     <h1 class="text-2xl font-bold mb-6">Settings</h1>
 
-    <div class="flex flex-wrap border-b border-th-border mb-0">
-        {#each tabs as tab}
-            <button
-                onclick={() => (activeTab = tab.id)}
-                class="px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap flex-shrink-0
-                    {activeTab === tab.id
-                        ? 'border-th-border-strong text-th-text'
-                        : 'border-transparent text-th-text-muted hover:text-th-text hover:border-th-border'}"
-            >
-                {tab.label}
-            </button>
-        {/each}
-    </div>
+    <div class="flex flex-col sm:flex-row sm:gap-6">
 
-    <div class="bg-th-surface rounded-b-xl rounded-tr-xl p-6 border border-th-border border-t-0 space-y-4">
+        <!-- Mobile: horizontal scrollable tab bar -->
+        <div class="sm:hidden flex overflow-x-auto scrollbar-none border-b border-th-border mb-0">
+            {#each tabs as tab}
+                <button
+                    onclick={() => (activeTab = tab.id)}
+                    class="px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap flex-shrink-0
+                        {activeTab === tab.id
+                            ? 'border-th-border-strong text-th-text'
+                            : 'border-transparent text-th-text-muted hover:text-th-text hover:border-th-border'}"
+                >
+                    {tab.label}
+                </button>
+            {/each}
+        </div>
+
+        <!-- Desktop: vertical sidebar -->
+        <nav class="hidden sm:flex flex-col w-36 shrink-0 gap-0.5 pt-1">
+            {#each tabs as tab}
+                <button
+                    onclick={() => (activeTab = tab.id)}
+                    class="w-full text-left px-3 py-2 text-sm rounded-lg transition-colors border-l-2
+                        {activeTab === tab.id
+                            ? 'border-th-border-strong bg-th-border/20 text-th-text font-medium'
+                            : 'border-transparent text-th-text-muted hover:text-th-text hover:bg-th-border/10'}"
+                >
+                    {tab.label}
+                </button>
+            {/each}
+        </nav>
+
+        <!-- Content panel -->
+        <div class="bg-th-surface rounded-b-xl rounded-tr-xl sm:rounded-xl p-6 border border-th-border border-t-0 sm:border-t space-y-4 flex-1 min-w-0">
 
         {#if activeTab === 'download'}
             <div>
@@ -1179,6 +1198,8 @@ let cronResult = $derived.by<CronResult>(() => {
         {/if}
 
     </div>
+
+    </div><!-- end flex row wrapper -->
 
     {#if !authDisabled}
         <Button
