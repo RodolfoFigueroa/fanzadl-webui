@@ -10,7 +10,7 @@ import type { ColorTheme } from '$lib/theme';
 import { getTheme, initTheme, setTheme } from '$lib/theme';
 import '../app.css';
 
-let { children } = $props();
+let { children, data } = $props();
 let theme = $state<ColorTheme>('system');
 
 type Notification = { id: number } & ToastNotification;
@@ -31,7 +31,7 @@ function startNotifications() {
 }
 
 onMount(() => {
-    if (window.location.pathname !== '/login') {
+    if (data.authenticated) {
         startNotifications();
     }
     return () => notifController?.abort();

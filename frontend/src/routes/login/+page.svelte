@@ -1,21 +1,11 @@
 <script lang="ts">
-import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
-import { getSettings, login } from '$lib/api';
+import { login } from '$lib/api';
 import TextInput from '$lib/components/TextInput.svelte';
 
 let password = $state('');
 let error = $state<string | null>(null);
 let loading = $state(false);
-
-onMount(async () => {
-    try {
-        await getSettings();
-        goto('/');
-    } catch {
-        // not authenticated — stay on login page
-    }
-});
 
 async function handleSubmit(e: Event) {
     e.preventDefault();

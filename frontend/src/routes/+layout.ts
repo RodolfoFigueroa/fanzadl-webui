@@ -5,10 +5,15 @@ import type { LayoutLoad } from './$types';
 export const ssr = false;
 
 export const load: LayoutLoad = async ({ url, fetch }) => {
-    if (url.pathname === '/login') return {};
-    const res = await fetch('/api/settings');
-    if (res.status === 401) {
+    const res = await fetch('/api/settings/', { cache: 'no-store' });
+    const authenticated = res.status !== 401;
+
+    if (!authenticated && url.pathname !== '/login') {
         redirect(302, '/login');
     }
-    return {};
+    if (authenticated && url.pathname === '/login') {
+        redirect(302, '/');
+    }
+
+    return { authenticated };
 };
