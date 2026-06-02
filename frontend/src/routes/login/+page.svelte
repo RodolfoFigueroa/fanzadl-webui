@@ -2,6 +2,7 @@
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import { getSettings, login } from '$lib/api';
+import TextInput from '$lib/components/TextInput.svelte';
 
 let password = $state('');
 let error = $state<string | null>(null);
@@ -49,15 +50,13 @@ async function handleSubmit(e: Event) {
                     class="text-sm font-medium text-th-text-muted"
                     >App Password</label
                 >
-                <input
+                <TextInput
                     id="password"
                     type="password"
                     bind:value={password}
                     required
                     autocomplete="current-password"
-                    class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
-                        focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                        transition-shadow"
+                    class="text-sm"
                 />
             </div>
             {#if error}

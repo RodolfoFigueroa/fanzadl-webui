@@ -14,6 +14,9 @@ import {
     subscribeLibraryEvents,
 } from '$lib/api';
 import DownloadModal from '$lib/components/DownloadModal.svelte';
+import ErrorAlert from '$lib/components/ErrorAlert.svelte';
+import Select from '$lib/components/Select.svelte';
+import TextInput from '$lib/components/TextInput.svelte';
 import VideoCard from '$lib/components/VideoCard.svelte';
 import type { LibraryItem } from '$lib/types';
 
@@ -250,33 +253,30 @@ onDestroy(() => {
 
 {#if library.length > 0}
 	<div class="flex items-center gap-2 mb-4 flex-wrap">
-		<input
+		<TextInput
 			type="search"
 			bind:value={searchQuery}
 			placeholder="Search…"
-			class="flex-1 min-w-32 bg-th-input border border-th-border text-th-text text-sm rounded-lg
-				py-1.5 px-3 focus:outline-none focus:border-th-border-strong placeholder:text-th-text-dim"
+			class="flex-1 min-w-32"
 		/>
-		<select
+		<Select
 			bind:value={contentTypeFilter}
-			class="bg-th-input border border-th-border text-th-text text-sm rounded-lg
-				py-1.5 px-3 focus:outline-none focus:border-th-border-strong"
+			class="min-w-[7rem]"
 		>
 			<option value="all">All types</option>
 			<option value="video">Video</option>
 			<option value="vr">VR</option>
-		</select>
-		<select
+		</Select>
+		<Select
 			bind:value={sortField}
-			class="bg-th-input border border-th-border text-th-text text-sm rounded-lg
-				py-1.5 px-3 focus:outline-none focus:border-th-border-strong"
+			class="min-w-[9rem]"
 		>
 			<option value="purchase_date">Date purchased</option>
 			<option value="title">Title</option>
 			<option value="parts">Part count</option>
 			<option value="expire">Days left</option>
 			<option value="content_id">Content ID</option>
-		</select>
+		</Select>
 		<button
 			onclick={() => (sortAsc = !sortAsc)}
 			title={sortAsc ? "Ascending" : "Descending"}
@@ -343,11 +343,7 @@ onDestroy(() => {
 		</p>
 	</div>
 {:else if error}
-	<div
-		class="text-red-400 bg-red-900/20 border border-red-800 rounded-lg p-4"
-	>
-		{error}
-	</div>
+	<ErrorAlert message={error} />
 {:else if library.length === 0}
 	<div class="text-center text-th-text-dim mt-24">
 		<p class="text-lg mb-2">Your library is empty.</p>

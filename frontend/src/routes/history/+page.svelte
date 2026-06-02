@@ -1,6 +1,8 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { deleteAllHistory, deleteHistoryItems, getHistory } from '$lib/api';
+import Badge from '$lib/components/Badge.svelte';
+import FormCheckbox from '$lib/components/FormCheckbox.svelte';
 import type { HistoryItem } from '$lib/types';
 
 type StatusFilter = 'all' | 'done' | 'error';
@@ -218,13 +220,11 @@ onMount(() => {
 				<thead class="bg-th-surface text-th-text-muted uppercase text-xs tracking-wide">
 					<tr>
 						<th class="px-3 py-2.5 w-8">
-							<input
-								type="checkbox"
+							<FormCheckbox
 								checked={allChecked}
 								indeterminate={someChecked}
 								onchange={toggleAll}
-								class="accent-th-brand cursor-pointer"
-								aria-label="Select all"
+								ariaLabel="Select all"
 							/>
 						</th>
 						<th class="px-3 py-2.5 text-left">Status</th>
@@ -241,23 +241,21 @@ onMount(() => {
 					{#each items as item (item.id)}
 						<tr class="hover:bg-th-surface/50 transition-colors {selected.has(item.id) ? 'bg-th-surface/30' : ''}">
 							<td class="px-3 py-2">
-								<input
-									type="checkbox"
+								<FormCheckbox
 									checked={selected.has(item.id)}
 									onchange={() => toggleSelect(item.id)}
-									class="accent-th-brand cursor-pointer"
-									aria-label="Select row"
+									ariaLabel="Select row"
 								/>
 							</td>
 							<td class="px-3 py-2">
 								{#if item.status === 'done'}
-									<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">
+									<Badge class="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">
 										done
-									</span>
+									</Badge>
 								{:else}
-									<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
+									<Badge class="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
 										error
-									</span>
+									</Badge>
 								{/if}
 							</td>
 							<td class="px-3 py-2 max-w-xs truncate text-th-text font-mono text-xs" title={item.output_name}>
@@ -268,13 +266,13 @@ onMount(() => {
 						</td>
 						<td class="px-3 py-2 hidden sm:table-cell">
 								{#if item.source === 'auto'}
-									<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+									<Badge class="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
 										auto
-									</span>
+									</Badge>
 								{:else}
-									<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-th-input text-th-text-muted">
+									<Badge class="bg-th-input text-th-text-muted">
 										manual
-									</span>
+									</Badge>
 								{/if}
 							</td>
 						<td class="px-3 py-2 text-right text-th-text-muted tabular-nums hidden sm:table-cell">

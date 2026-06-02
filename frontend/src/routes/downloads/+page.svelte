@@ -9,6 +9,7 @@ import {
     subscribeJobCreatedEvents,
     subscribeJobEvents,
 } from '$lib/api';
+import ErrorAlert from '$lib/components/ErrorAlert.svelte';
 import JobGroup from '$lib/components/JobGroup.svelte';
 import type { DownloadJob } from '$lib/types';
 
@@ -214,11 +215,7 @@ async function handleBulkDelete(job_filter: 'finished' | 'done' | 'errored') {
 {#if loading}
 	<div class="text-th-text-dim">Loading…</div>
 {:else if error}
-	<div
-		class="text-red-400 bg-red-900/20 border border-red-800 rounded-lg p-4"
-	>
-		{error}
-	</div>
+    <ErrorAlert message={error} />
 {:else if sortedJobs.length === 0}
 	<div class="text-center text-th-text-dim mt-24">
 		<p class="text-lg mb-2">No downloads yet.</p>

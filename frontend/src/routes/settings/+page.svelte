@@ -15,6 +15,9 @@ import {
     updateSettings,
 } from '$lib/api';
 import Button from '$lib/components/Button.svelte';
+import FormCheckbox from '$lib/components/FormCheckbox.svelte';
+import Select from '$lib/components/Select.svelte';
+import TextInput from '$lib/components/TextInput.svelte';
 import {
     DEFAULT_MULTI_PART_TEMPLATE,
     DEFAULT_SINGLE_PART_TEMPLATE,
@@ -359,7 +362,7 @@ let cronResult = $derived.by<CronResult>(() => {
                     Number of parallel threads used by N_m3u8DL-RE (1-32). Each
                     simultaneous download uses this amount of threads.
                 </p>
-                <input
+                <TextInput
                     id="thread-count"
                     type="number"
                     min="1"
@@ -368,9 +371,7 @@ let cronResult = $derived.by<CronResult>(() => {
                     onchange={() => {
                         threadCount = Math.min(32, Math.max(1, threadCount));
                     }}
-                    class="w-24 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
-                        focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                        transition-shadow"
+                    class="w-24"
                 />
             </div>
             <div>
@@ -384,7 +385,7 @@ let cronResult = $derived.by<CronResult>(() => {
                     How many downloads may run at the same time. Additional
                     downloads are queued and start automatically.
                 </p>
-                <input
+                <TextInput
                     id="max-concurrent-downloads"
                     type="number"
                     min="1"
@@ -392,9 +393,7 @@ let cronResult = $derived.by<CronResult>(() => {
                     onchange={() => {
                         maxConcurrentDownloads = Math.max(1, maxConcurrentDownloads);
                     }}
-                    class="w-24 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
-                        focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                        transition-shadow"
+                    class="w-24"
                 />
             </div>
             {#if downloadError}
@@ -439,15 +438,13 @@ let cronResult = $derived.by<CronResult>(() => {
                     </span>
                 </div>
                 <div class="flex gap-2">
-                    <input
+                    <TextInput
                         id="javstash-api-key"
                         type="password"
                         placeholder="Enter new API key"
                         bind:value={javstashKeyInput}
                         disabled={javstashSaving}
-                        class="flex-1 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
-                            focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                            transition-shadow disabled:opacity-50"
+                        class="flex-1"
                     />
                     <Button
                         variant="secondary"
@@ -478,15 +475,12 @@ let cronResult = $derived.by<CronResult>(() => {
                     Single-part filename template
                 </label>
                 <p class="text-xs text-th-text-dim mb-2">Template for items with a single part.</p>
-                <input
+                <TextInput
                     id="single-part-template"
                     type="text"
                     bind:value={singlePartTemplate}
-                    class="w-full bg-th-input border rounded-lg px-3 py-2 text-th-text font-mono text-sm
-                        focus:outline-none focus:ring-2 focus:border-transparent transition-shadow
-                        {singlePartErrors.length > 0
-                            ? 'border-red-500 focus:ring-red-500'
-                            : 'border-th-border-input focus:ring-th-border-strong'}"
+                    error={singlePartErrors.length > 0}
+                    class="w-full font-mono"
                 />
                 {#if singlePartErrors.length > 0}
                     <ul class="mt-1.5 space-y-0.5">
@@ -508,15 +502,12 @@ let cronResult = $derived.by<CronResult>(() => {
                     Multi-part filename template
                 </label>
                 <p class="text-xs text-th-text-dim mb-2">Template for items with multiple parts.</p>
-                <input
+                <TextInput
                     id="multi-part-template"
                     type="text"
                     bind:value={multiPartTemplate}
-                    class="w-full bg-th-input border rounded-lg px-3 py-2 text-th-text font-mono text-sm
-                        focus:outline-none focus:ring-2 focus:border-transparent transition-shadow
-                        {multiPartErrors.length > 0
-                            ? 'border-red-500 focus:ring-red-500'
-                            : 'border-th-border-input focus:ring-th-border-strong'}"
+                    error={multiPartErrors.length > 0}
+                    class="w-full font-mono"
                 />
                 {#if multiPartErrors.length > 0}
                     <ul class="mt-1.5 space-y-0.5">
@@ -595,18 +586,16 @@ let cronResult = $derived.by<CronResult>(() => {
                 <p class="text-xs text-th-text-dim mb-2">
                     Controls the verbosity of server-side logging.
                 </p>
-                <select
+                <Select
                     id="log-level"
                     bind:value={logLevel}
-                    class="w-32 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
-                        focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                        transition-shadow"
+                    class="w-32"
                 >
                     <option value="DEBUG">DEBUG</option>
                     <option value="INFO">INFO</option>
                     <option value="WARNING">WARNING</option>
                     <option value="ERROR">ERROR</option>
-                </select>
+                </Select>
             </div>
             {#if loggingError}
                 <p class="text-xs text-red-400">{loggingError}</p>
@@ -632,12 +621,7 @@ let cronResult = $derived.by<CronResult>(() => {
         {:else if activeTab === 'schedule'}
             <div>
                 <label class="flex items-center gap-3 cursor-pointer w-fit">
-                    <input
-                        type="checkbox"
-                        bind:checked={autoDownloadNewItems}
-                        class="w-4 h-4 rounded border border-th-border-input bg-th-input
-                            accent-th-border-strong cursor-pointer"
-                    />
+                    <FormCheckbox bind:checked={autoDownloadNewItems} />
                     <span class="text-sm font-medium text-th-text-muted">
                         Auto-download new items
                     </span>
@@ -650,12 +634,7 @@ let cronResult = $derived.by<CronResult>(() => {
             </div>
             <div>
                 <label class="flex items-center gap-3 cursor-pointer w-fit">
-                    <input
-                        type="checkbox"
-                        bind:checked={autoDownloadMissingParts}
-                        class="w-4 h-4 rounded border border-th-border-input bg-th-input
-                            accent-th-border-strong cursor-pointer"
-                    />
+                    <FormCheckbox bind:checked={autoDownloadMissingParts} />
                     <span class="text-sm font-medium text-th-text-muted">
                         Auto-download missing parts
                     </span>
@@ -667,12 +646,7 @@ let cronResult = $derived.by<CronResult>(() => {
             </div>
             <div>
                 <label class="flex items-center gap-3 cursor-pointer w-fit">
-                    <input
-                        type="checkbox"
-                        bind:checked={scheduleEnabled}
-                        class="w-4 h-4 rounded border border-th-border-input bg-th-input
-                            accent-th-border-strong cursor-pointer"
-                    />
+                    <FormCheckbox bind:checked={scheduleEnabled} />
                     <span class="text-sm font-medium text-th-text-muted">
                         Enable periodic library refresh
                     </span>
@@ -692,18 +666,14 @@ let cronResult = $derived.by<CronResult>(() => {
                 <p class="text-xs text-th-text-dim mb-2">
                     Standard 5-field cron expression
                 </p>
-                <input
+                <TextInput
                     id="refresh-cron"
                     type="text"
                     bind:value={refreshCron}
                     disabled={!scheduleEnabled}
                     oninput={() => { /* triggers $derived re-evaluation */ }}
-                    class="w-full bg-th-input border rounded-lg px-3 py-2 text-th-text font-mono text-sm
-                        focus:outline-none focus:ring-2 focus:border-transparent transition-shadow
-                        disabled:opacity-50 disabled:cursor-not-allowed
-                        {!cronResult.ok && scheduleEnabled
-                            ? 'border-red-500 focus:ring-red-500'
-                            : 'border-th-border-input focus:ring-th-border-strong'}"
+                    error={!cronResult.ok && scheduleEnabled}
+                    class="w-full font-mono"
                 />
                 {#if scheduleEnabled}
                     {#if cronResult.ok}
@@ -755,14 +725,12 @@ let cronResult = $derived.by<CronResult>(() => {
                     Leave blank to disable webhooks.
                 </p>
                 <div class="flex gap-2">
-                    <input
+                    <TextInput
                         id="webhook-url"
                         type="url"
                         placeholder="https://example.com/webhook"
                         bind:value={webhookUrl}
-                        class="flex-1 bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
-                            focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                            transition-shadow"
+                        class="flex-1"
                     />
                 </div>
             </div>
@@ -782,13 +750,11 @@ let cronResult = $derived.by<CronResult>(() => {
                         >Clear secret</Button>
                     </div>
                 {:else}
-                    <input
+                    <TextInput
                         type="password"
                         placeholder={webhookSecretClearing ? 'Leave blank to clear, or enter a new secret' : 'Enter a secret to enable signing'}
                         bind:value={webhookSecretInput}
-                        class="w-full bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-th-text
-                            focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                            transition-shadow"
+                        class="w-full"
                     />
                     {#if webhookSecretClearing}
                         <p class="text-xs text-th-text-dim mt-1">
@@ -807,8 +773,7 @@ let cronResult = $derived.by<CronResult>(() => {
                         {@const someChecked = !allChecked && groupIds.some(id => webhookEvents.has(id))}
                         <div>
                             <label class="flex items-center gap-3 cursor-pointer w-fit mb-2">
-                                <input
-                                    type="checkbox"
+                                <FormCheckbox
                                     checked={allChecked}
                                     indeterminate={someChecked}
                                     onchange={() => {
@@ -820,24 +785,19 @@ let cronResult = $derived.by<CronResult>(() => {
                                         }
                                         webhookEvents = next;
                                     }}
-                                    class="w-4 h-4 rounded border border-th-border-input bg-th-input
-                                        accent-th-border-strong cursor-pointer"
                                 />
                                 <span class="text-sm font-semibold text-th-text-muted">{group.label}</span>
                             </label>
                             <div class="space-y-2 pl-7">
                                 {#each group.events as ev}
                                     <label class="flex items-center gap-3 cursor-pointer w-fit">
-                                        <input
-                                            type="checkbox"
+                                        <FormCheckbox
                                             checked={webhookEvents.has(ev.id)}
                                             onchange={() => {
                                                 const next = new Set(webhookEvents);
                                                 if (next.has(ev.id)) next.delete(ev.id); else next.add(ev.id);
                                                 webhookEvents = next;
                                             }}
-                                            class="w-4 h-4 rounded border border-th-border-input bg-th-input
-                                                accent-th-border-strong cursor-pointer"
                                         />
                                         <span class="text-sm text-th-text-muted">{ev.label}</span>
                                     </label>
@@ -927,15 +887,12 @@ let cronResult = $derived.by<CronResult>(() => {
                         change on every server restart.
                     </p>
                 {/if}
-                <input
+                <TextInput
                     id="local-api-key"
                     type="text"
                     readonly
                     value={apiKeyPreview}
-                    class="w-full bg-th-input border border-th-border-input rounded-lg px-3 py-2
-                        text-th-text font-mono text-sm mb-2
-                        focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                        transition-shadow"
+                    class="w-full font-mono mb-2"
                 />
                 {#if apiKey !== null}
                     <div class="mb-2 p-3 rounded-lg border border-amber-700/50 bg-amber-900/10 space-y-2">
@@ -944,14 +901,11 @@ let cronResult = $derived.by<CronResult>(() => {
                         </p>
                         <div class="flex gap-2">
                             <div class="relative flex-1">
-                                <input
+                                <TextInput
                                     type={apiKeyVisible ? 'text' : 'password'}
                                     readonly
                                     value={apiKey}
-                                    class="w-full bg-th-input border border-th-border-input rounded-lg px-3 py-2
-                                        text-th-text font-mono text-sm pr-10
-                                        focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                                        transition-shadow select-all"
+                                    class="w-full font-mono pr-10 select-all"
                                 />
                                 <button
                                     onclick={() => (apiKeyVisible = !apiKeyVisible)}
@@ -1058,28 +1012,22 @@ let cronResult = $derived.by<CronResult>(() => {
                     <div class="flex flex-col gap-3">
                         <div class="flex flex-col gap-1">
                             <label for="fanza-email" class="text-xs font-medium text-th-text-muted">Email</label>
-                            <input
+                            <TextInput
                                 id="fanza-email"
                                 type="email"
                                 bind:value={fanzaEmail}
                                 autocomplete="email"
                                 disabled={fanzaConnecting}
-                                class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
-                                    focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                                    transition-shadow disabled:opacity-50"
                             />
                         </div>
                         <div class="flex flex-col gap-1">
                             <label for="fanza-password" class="text-xs font-medium text-th-text-muted">Password</label>
-                            <input
+                            <TextInput
                                 id="fanza-password"
                                 type="password"
                                 bind:value={fanzaPassword}
                                 autocomplete="current-password"
                                 disabled={fanzaConnecting}
-                                class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
-                                    focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                                    transition-shadow disabled:opacity-50"
                             />
                         </div>
                         {#if fanzaConnectError}
@@ -1120,41 +1068,32 @@ let cronResult = $derived.by<CronResult>(() => {
                 <div class="flex flex-col gap-3">
                     <div class="flex flex-col gap-1">
                         <label for="current-password" class="text-xs font-medium text-th-text-muted">Current password</label>
-                        <input
+                        <TextInput
                             id="current-password"
                             type="password"
                             bind:value={currentPassword}
                             autocomplete="current-password"
                             disabled={passwordSaving}
-                            class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
-                                focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                                transition-shadow disabled:opacity-50"
                         />
                     </div>
                     <div class="flex flex-col gap-1">
                         <label for="new-password" class="text-xs font-medium text-th-text-muted">New password</label>
-                        <input
+                        <TextInput
                             id="new-password"
                             type="password"
                             bind:value={newPassword}
                             autocomplete="new-password"
                             disabled={passwordSaving}
-                            class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
-                                focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                                transition-shadow disabled:opacity-50"
                         />
                     </div>
                     <div class="flex flex-col gap-1">
                         <label for="confirm-password" class="text-xs font-medium text-th-text-muted">Confirm new password</label>
-                        <input
+                        <TextInput
                             id="confirm-password"
                             type="password"
                             bind:value={confirmPassword}
                             autocomplete="new-password"
                             disabled={passwordSaving}
-                            class="bg-th-input border border-th-border-input rounded-lg px-3 py-2 text-sm text-th-text
-                                focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
-                                transition-shadow disabled:opacity-50"
                         />
                     </div>
                     {#if passwordError}
