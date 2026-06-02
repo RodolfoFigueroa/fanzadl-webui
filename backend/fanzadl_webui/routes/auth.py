@@ -24,7 +24,7 @@ _RATE_LIMIT_MAX = 10
 _login_attempts: dict[str, list[float]] = {}
 _login_rate_lock = asyncio.Lock()
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 class LoginRequest(BaseModel):

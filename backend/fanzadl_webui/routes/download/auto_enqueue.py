@@ -4,13 +4,13 @@ from pathlib import Path
 import m3u8
 from fanzadl.models.video import LibraryItemContentsModel
 from fanzadl_webui.dependencies import DOWNLOAD_DIR
-from fanzadl_webui.events import publish_library_event
-from fanzadl_webui.filename import render_template
-from fanzadl_webui.models import DownloadJob, JobStatus, LibraryEvent
-from fanzadl_webui.routes.download.runner import (
+from fanzadl_webui.download import (
     dispatch_download,
     register_job,
 )
+from fanzadl_webui.events import publish_library_event
+from fanzadl_webui.filename import render_template
+from fanzadl_webui.models import DownloadJob, JobStatus, LibraryEvent
 from fanzadl_webui.state import AppState
 
 logger = logging.getLogger(__name__)

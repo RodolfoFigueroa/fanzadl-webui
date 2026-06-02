@@ -29,6 +29,7 @@ from fanzadl_webui.routes import (
     download,
     history,
     images,
+    jobs,
     library,
     notifications,
     settings,
@@ -343,6 +344,7 @@ app.include_router(settings.router, prefix="/api")
 app.include_router(images.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(history.router, prefix="/api")
+app.include_router(jobs.router, prefix="/api")
 
 _dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 if _dist.is_dir():
