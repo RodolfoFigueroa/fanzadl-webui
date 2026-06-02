@@ -10,6 +10,8 @@ let {
     size = 'md',
     loading = false,
     loadingText = '',
+    success = false,
+    successText = 'Saved',
     disabled = false,
     class: extraClasses = '',
     children,
@@ -19,6 +21,8 @@ let {
     size?: Size;
     loading?: boolean;
     loadingText?: string;
+    success?: boolean;
+    successText?: string;
     disabled?: boolean;
     class?: string;
     children?: Snippet;
@@ -41,10 +45,12 @@ const sizeClasses: Record<Size, string> = {
 
 <button
     class="rounded-lg border transition-colors disabled:opacity-40 whitespace-nowrap {variantClasses[variant]} {sizeClasses[size]} {extraClasses}"
-    disabled={disabled || loading}
+    disabled={disabled || loading || success}
     {...rest}
 >
-    {#if loading && loadingText}
+    {#if success}
+        <span class="text-sakura-400">{successText}</span>
+    {:else if loading && loadingText}
         {loadingText}
     {:else if children}
         {@render children()}

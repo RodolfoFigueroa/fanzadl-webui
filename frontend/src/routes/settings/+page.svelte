@@ -69,6 +69,7 @@ let passwordSuccess = $state(false);
 let authDisabled = $state(getCachedSettings()?.auth_disabled ?? false);
 let authDisabledSaving = $state(false);
 let authDisabledError = $state('');
+let authDisabledSaved = $state(false);
 
 async function handleDisconnect() {
     if (!disconnectConfirming) {
@@ -135,6 +136,7 @@ let webhookEvents = $state<Set<string>>(
 );
 let webhookSaving = $state(false);
 let webhookError = $state('');
+let webhookSaved = $state(false);
 let webhookTesting = $state(false);
 let webhookTestResult = $state<{
     status_code?: number;
@@ -144,12 +146,16 @@ let webhookTestResult = $state<{
 
 let downloadSaving = $state(false);
 let downloadError = $state('');
+let downloadSaved = $state(false);
 let filenamesSaving = $state(false);
 let filenamesError = $state('');
+let filenamesSaved = $state(false);
 let loggingSaving = $state(false);
 let loggingError = $state('');
+let loggingSaved = $state(false);
 let scheduleSaving = $state(false);
 let scheduleError = $state('');
+let scheduleSaved = $state(false);
 
 const WEBHOOK_EVENT_GROUPS: {
     label: string;
@@ -175,6 +181,7 @@ const WEBHOOK_EVENT_GROUPS: {
 let javstashKeyInput = $state('');
 let javstashSaving = $state(false);
 let javstashError = $state('');
+let javstashSaved = $state(false);
 
 let apiKeyPreview = $state('');
 let apiKey = $state<string | null>(null);
@@ -219,6 +226,10 @@ async function handleSaveJavstashKey() {
         });
         javstashEnabled = s.javstash_enabled;
         javstashKeyInput = '';
+        javstashSaved = true;
+        setTimeout(() => {
+            javstashSaved = false;
+        }, 2000);
     } catch (e) {
         javstashError =
             e instanceof Error ? e.message : 'Failed to save API key';
@@ -435,6 +446,8 @@ let cronResult = $derived.by<CronResult>(() => {
                                 download_thread_count: threadCount,
                                 max_concurrent_downloads: maxConcurrentDownloads,
                             });
+                            downloadSaved = true;
+                            setTimeout(() => { downloadSaved = false; }, 2000);
                         } catch (e) {
                             downloadError = e instanceof Error ? e.message : 'Failed to save';
                         } finally {
@@ -443,6 +456,8 @@ let cronResult = $derived.by<CronResult>(() => {
                     }}
                     loading={downloadSaving}
                     loadingText="Saving…"
+                    success={downloadSaved}
+                    successText="Saved!"
                 >Save</Button>
             </div>
 
@@ -478,6 +493,8 @@ let cronResult = $derived.by<CronResult>(() => {
                         loading={javstashSaving}
                         disabled={!javstashKeyInput.trim()}
                         loadingText="Saving…"
+                        success={javstashSaved}
+                        successText="Saved!"
                     >Save</Button>
                     {#if javstashEnabled}
                         <Button
@@ -589,6 +606,8 @@ let cronResult = $derived.by<CronResult>(() => {
                                 single_part_filename_template: singlePartTemplate,
                                 multi_part_filename_template: multiPartTemplate,
                             });
+                            filenamesSaved = true;
+                            setTimeout(() => { filenamesSaved = false; }, 2000);
                         } catch (e) {
                             filenamesError = e instanceof Error ? e.message : 'Failed to save';
                         } finally {
@@ -598,6 +617,8 @@ let cronResult = $derived.by<CronResult>(() => {
                     loading={filenamesSaving}
                     disabled={singlePartErrors.length > 0 || multiPartErrors.length > 0}
                     loadingText="Saving…"
+                    success={filenamesSaved}
+                    successText="Saved!"
                 >Save</Button>
             </div>
 
@@ -633,6 +654,8 @@ let cronResult = $derived.by<CronResult>(() => {
                         loggingError = '';
                         try {
                             await updateSettings({ log_level: logLevel });
+                            loggingSaved = true;
+                            setTimeout(() => { loggingSaved = false; }, 2000);
                         } catch (e) {
                             loggingError = e instanceof Error ? e.message : 'Failed to save';
                         } finally {
@@ -641,6 +664,8 @@ let cronResult = $derived.by<CronResult>(() => {
                     }}
                     loading={loggingSaving}
                     loadingText="Saving…"
+                    success={loggingSaved}
+                    successText="Saved!"
                 >Save</Button>
             </div>
 
@@ -726,6 +751,8 @@ let cronResult = $derived.by<CronResult>(() => {
                                 library_refresh_enabled: scheduleEnabled,
                                 library_refresh_cron: refreshCron,
                             });
+                            scheduleSaved = true;
+                            setTimeout(() => { scheduleSaved = false; }, 2000);
                         } catch (e) {
                             scheduleError = e instanceof Error ? e.message : 'Failed to save';
                         } finally {
@@ -735,6 +762,8 @@ let cronResult = $derived.by<CronResult>(() => {
                     loading={scheduleSaving}
                     disabled={scheduleEnabled && !cronResult.ok}
                     loadingText="Saving…"
+                    success={scheduleSaved}
+                    successText="Saved!"
                 >Save</Button>
             </div>
 
@@ -866,6 +895,8 @@ let cronResult = $derived.by<CronResult>(() => {
                             webhookSecretConfigured = s.webhook_secret_configured;
                             webhookSecretInput = '';
                             webhookSecretClearing = false;
+                            webhookSaved = true;
+                            setTimeout(() => { webhookSaved = false; }, 2000);
                         } catch (e) {
                             webhookError = e instanceof Error ? e.message : 'Failed to save';
                         } finally {
@@ -874,6 +905,8 @@ let cronResult = $derived.by<CronResult>(() => {
                     }}
                     loading={webhookSaving}
                     loadingText="Saving…"
+                    success={webhookSaved}
+                    successText="Saved!"
                 >Save</Button>
                 <Button
                     variant="secondary"
@@ -1113,6 +1146,8 @@ let cronResult = $derived.by<CronResult>(() => {
                         authDisabledError = '';
                         try {
                             await updateSettings({ auth_disabled: authDisabled });
+                            authDisabledSaved = true;
+                            setTimeout(() => { authDisabledSaved = false; }, 2000);
                         } catch (e) {
                             authDisabledError = e instanceof Error ? e.message : 'Failed to save';
                         } finally {
@@ -1121,6 +1156,8 @@ let cronResult = $derived.by<CronResult>(() => {
                     }}
                     loading={authDisabledSaving}
                     loadingText="Saving…"
+                    success={authDisabledSaved}
+                    successText="Saved!"
                 >Save</Button>
             </div>
 
