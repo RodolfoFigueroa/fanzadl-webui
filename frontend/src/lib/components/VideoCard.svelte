@@ -135,7 +135,7 @@ const days = $derived(daysLeft(item.expire));
 					d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
 				/>
 			</svg>
-			{#if days < 0}
+			{#if expired || days < 0}
 				<span>Expired</span>
 			{:else if days === 0}
 				<span>Expires today</span>
