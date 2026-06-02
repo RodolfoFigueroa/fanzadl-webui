@@ -4,10 +4,6 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
-from sse_starlette.sse import EventSourceResponse
-
 from fanzadl_webui.dependencies import DOWNLOAD_DIR, get_app_state, require_api_key
 from fanzadl_webui.models import DownloadJob, JobStatus
 from fanzadl_webui.routes.download.runner import (
@@ -18,6 +14,9 @@ from fanzadl_webui.routes.download.runner import (
     register_job,
 )
 from fanzadl_webui.state import AppState
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
+from sse_starlette.sse import EventSourceResponse
 
 router = APIRouter()
 

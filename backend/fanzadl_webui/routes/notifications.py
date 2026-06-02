@@ -2,11 +2,10 @@ import asyncio
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
-from sse_starlette.sse import EventSourceResponse
-
 from fanzadl_webui.dependencies import get_app_state, require_api_key
 from fanzadl_webui.state import AppState
+from fastapi import APIRouter, Depends, Request
+from sse_starlette.sse import EventSourceResponse
 
 router = APIRouter(prefix="/notifications")
 

@@ -7,7 +7,6 @@ from typing import Any
 
 import m3u8
 from fanzadl.constants import USER_AGENT
-
 from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.history_db import insert_history
 from fanzadl_webui.models import DownloadJob, JobStatus, Queues

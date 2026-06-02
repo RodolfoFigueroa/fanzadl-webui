@@ -1,9 +1,6 @@
 import asyncio
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
-
 from fanzadl_webui.dependencies import get_app_state, require_api_key
 from fanzadl_webui.history_db import (
     delete_all_history,
@@ -11,6 +8,8 @@ from fanzadl_webui.history_db import (
     get_history,
 )
 from fanzadl_webui.state import AppState
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 
 router = APIRouter()
 

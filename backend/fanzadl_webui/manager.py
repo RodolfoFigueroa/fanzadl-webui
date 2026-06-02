@@ -7,7 +7,6 @@ from pathlib import Path
 from fanzadl import FanzaDLManager
 from fanzadl.models.library import LibraryDataModel
 from fanzadl.models.video import LibraryItemContentsModel
-
 from fanzadl_webui.library_db import delete_all, load_available_items
 
 logger = logging.getLogger(__name__)

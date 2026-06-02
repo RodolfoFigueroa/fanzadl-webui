@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 
     import httpx
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
     from fanzadl_webui.manager import PersistingFanzaDLManager
     from fanzadl_webui.models import DownloadJob, Queues, StreamVariant
     from fanzadl_webui.store.config import LogLevel

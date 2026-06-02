@@ -2,8 +2,6 @@ import asyncio
 from typing import Annotated
 
 from fanzadl import FanzaDLManager
-from fastapi import APIRouter, Depends, HTTPException, status
-
 from fanzadl_webui.dependencies import (
     IMAGE_CACHE_DIR,
     LIBRARY_DB_PATH,
@@ -23,6 +21,7 @@ from fanzadl_webui.routes.download import (
 from fanzadl_webui.routes.images import precache_all, purge_stale
 from fanzadl_webui.state import AppState
 from fanzadl_webui.webhook import fire_webhook
+from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter()
 

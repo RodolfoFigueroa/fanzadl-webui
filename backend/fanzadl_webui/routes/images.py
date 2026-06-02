@@ -6,9 +6,6 @@ from typing import Annotated
 
 import httpx
 from fanzadl import FanzaDLManager
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import FileResponse
-
 from fanzadl_webui.dependencies import (
     IMAGE_CACHE_DIR,
     LIBRARY_DB_PATH,
@@ -18,6 +15,8 @@ from fanzadl_webui.dependencies import (
 )
 from fanzadl_webui.library_db import get_unavailable_items
 from fanzadl_webui.state import AppState
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 
 logger = logging.getLogger(__name__)
 

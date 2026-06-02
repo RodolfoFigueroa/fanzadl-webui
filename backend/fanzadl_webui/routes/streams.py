@@ -5,12 +5,11 @@ from typing import Annotated, Literal
 import httpx
 import m3u8
 from fanzadl import FanzaDLManager
-from fastapi import APIRouter, Depends, HTTPException, status
-
 from fanzadl_webui.dependencies import get_app_state, get_manager, require_api_key
 from fanzadl_webui.models import StreamVariant
 from fanzadl_webui.routes._utils import get_quality_obj
 from fanzadl_webui.state import AppState
+from fastapi import APIRouter, Depends, HTTPException, status
 
 logger = logging.getLogger(__name__)
 

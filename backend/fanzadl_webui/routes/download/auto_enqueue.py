@@ -3,7 +3,6 @@ from pathlib import Path
 
 import m3u8
 from fanzadl.models.video import LibraryItemContentsModel
-
 from fanzadl_webui.dependencies import DOWNLOAD_DIR
 from fanzadl_webui.events import publish_library_event
 from fanzadl_webui.filename import render_template

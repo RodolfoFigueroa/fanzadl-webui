@@ -1,10 +1,9 @@
 from typing import Annotated, Literal
 
 from fanzadl import FanzaDLManager
-from fastapi import APIRouter, Depends
-
 from fanzadl_webui.dependencies import get_manager, require_api_key
 from fanzadl_webui.routes._utils import get_quality_obj
+from fastapi import APIRouter, Depends
 
 router = APIRouter(prefix="/url")
 

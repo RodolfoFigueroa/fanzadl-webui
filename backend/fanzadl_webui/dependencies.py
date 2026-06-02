@@ -4,9 +4,8 @@ from pathlib import Path
 from typing import Annotated
 
 from fanzadl import FanzaDLManager
-from fastapi import Cookie, Header, HTTPException, Request, status
-
 from fanzadl_webui.state import AppState
+from fastapi import Cookie, Header, HTTPException, Request, status
 
 DOWNLOAD_DIR = Path("/download")
 IMAGE_CACHE_DIR = Path("/data/image_cache")

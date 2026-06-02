@@ -7,9 +7,6 @@ from fanzadl import FanzaDLManager
 from fanzadl.models.video import (
     LibraryItemContentsModel,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-
 from fanzadl_webui.dependencies import (
     LIBRARY_DB_PATH,
     get_app_state,
@@ -22,6 +19,8 @@ from fanzadl_webui.library_db import (
     mark_item_unavailable,
 )
 from fanzadl_webui.state import AppState
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
 
 class LibraryItemResponse(BaseModel):

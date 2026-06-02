@@ -10,14 +10,6 @@ import bcrypt
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fanzadl.exceptions import AuthExpiredError
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.base import RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import Response
-from starlette.types import Scope
-
 from fanzadl_webui.dependencies import (
     CONFIG_PATH,
     HISTORY_DB_PATH,
@@ -49,6 +41,13 @@ from fanzadl_webui.state import AppState
 from fanzadl_webui.store.api_key import load_api_key, save_api_key
 from fanzadl_webui.store.config import AppConfig, load_config, save_config
 from fanzadl_webui.store.token import delete_tokens, load_tokens, save_tokens
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.types import Scope
 
 _MAX_BODY_BYTES = 64 * 1024  # 64 KB
 
@@ -337,7 +336,7 @@ app.include_router(images.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(history.router, prefix="/api")
 
-_dist = Path(__file__).parent.parent / "frontend" / "dist"
+_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 if _dist.is_dir():
 
     class SPAStaticFiles(StaticFiles):

@@ -25,8 +25,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-COPY fanzadl_webui/ ./fanzadl_webui/
-COPY main.py .
+COPY backend/fanzadl_webui/ ./backend/fanzadl_webui/
+COPY backend/main.py ./backend/main.py
 
 RUN uv sync --frozen --no-dev
 
@@ -36,4 +36,4 @@ RUN mkdir -p /download /image_cache
 
 EXPOSE 4352
 
-CMD ["uv", "run", "python", "main.py"]
+CMD ["uv", "run", "python", "backend/main.py"]
