@@ -4,7 +4,7 @@ import { fly } from 'svelte/transition';
 import { afterNavigate, goto } from '$app/navigation';
 import { page } from '$app/state';
 import type { ToastNotification } from '$lib/api';
-import { getSettings, logout, subscribeNotifications } from '$lib/api';
+import { logout, subscribeNotifications } from '$lib/api';
 import Toast from '$lib/components/Toast.svelte';
 import type { ColorTheme } from '$lib/theme';
 import { getTheme, initTheme, setTheme } from '$lib/theme';
@@ -47,14 +47,9 @@ function selectTheme(t: ColorTheme) {
     setTheme(t);
 }
 
-afterNavigate(async ({ to }) => {
+afterNavigate(({ to }) => {
     if (to?.url.pathname === '/login') return;
-    try {
-        await getSettings();
-        startNotifications();
-    } catch {
-        // apiFetch redirects to /login on 401
-    }
+    startNotifications();
 });
 
 async function handleLogout() {
