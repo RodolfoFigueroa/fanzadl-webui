@@ -1,26 +1,33 @@
+import asyncio
 import json
-import os
 from datetime import date, datetime
 from typing import Annotated, Literal
 
 from fanzadl import FanzaDLManager
-from fanzadl.models.video import (
-    LibraryItemContentsModel,
-)
+from fanzadl.models.video import LibraryItemContentsModel
 from fanzadl_webui.dependencies import (
+    IMAGE_CACHE_DIR,
     LIBRARY_DB_PATH,
     get_app_state,
     get_manager,
     require_api_key,
+    require_dev_mode,
 )
+from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.library_db import (
     delete_unavailable_item,
     get_unavailable_items,
     mark_item_unavailable,
 )
+from fanzadl_webui.routes.images import precache_all, purge_stale
+from fanzadl_webui.routes.library.refresh import (
+    _warm_save_and_enqueue,
+)
 from fanzadl_webui.state import AppState
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+
+router = APIRouter(prefix="/library", tags=["Library"])
 
 
 class LibraryItemResponse(BaseModel):
@@ -35,14 +42,6 @@ class LibraryItemResponse(BaseModel):
     trans_type: Literal["download", "stream"]
     javstash_id: str | None = None
     javstash_studio_code: str | None = None
-
-
-router = APIRouter(prefix="/library")
-
-
-def _require_dev_mode() -> None:
-    if os.environ.get("FANZADL_DEV") != "1":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
 
 class _DevExpireBody(BaseModel):
@@ -65,10 +64,39 @@ def _serialize(item: LibraryItemContentsModel) -> LibraryItemResponse:
     )
 
 
+@router.post("/refresh/")
+async def refresh_library(
+    manager: Annotated[FanzaDLManager, Depends(get_manager)],
+    app_state: Annotated[AppState, Depends(get_app_state)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> dict[str, str]:
+    old_snapshot: dict[int, str] = {
+        vid_id: item.content_id for vid_id, item in manager.library.items()
+    }
+    try:
+        await asyncio.to_thread(manager.update_library)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to refresh library: {exc}",
+        ) from exc
+    app_state.stream_cache = {}
+    await asyncio.to_thread(purge_stale, manager, IMAGE_CACHE_DIR)
+    await rescan_and_store(app_state)
+    for coro in (
+        precache_all(manager, app_state.http_client, IMAGE_CACHE_DIR),
+        _warm_save_and_enqueue(manager, app_state, old_snapshot),
+    ):
+        task = asyncio.create_task(coro)
+        app_state.background_tasks.add(task)
+        task.add_done_callback(app_state.background_tasks.discard)
+    return {"status": "ok"}
+
+
 @router.post(
     "/expire/",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(_require_dev_mode)],
+    dependencies=[Depends(require_dev_mode)],
 )
 def dev_expire_item(
     body: _DevExpireBody,
@@ -135,14 +163,6 @@ def get_download_counts(
     return app_state.download_counts
 
 
-@router.get("/")
-def get_library(
-    manager: Annotated[FanzaDLManager, Depends(get_manager)],
-    _: Annotated[None, Depends(require_api_key)],
-) -> dict[int, LibraryItemResponse]:
-    return {k: _serialize(v) for k, v in manager.library.items()}
-
-
 @router.get("/{video_id}")
 def get_item(
     video_id: int,
@@ -155,3 +175,11 @@ def get_item(
             status_code=status.HTTP_404_NOT_FOUND, detail="Video not found"
         )
     return _serialize(item)
+
+
+@router.get("/")
+def get_library(
+    manager: Annotated[FanzaDLManager, Depends(get_manager)],
+    _: Annotated[None, Depends(require_api_key)],
+) -> dict[int, LibraryItemResponse]:
+    return {k: _serialize(v) for k, v in manager.library.items()}

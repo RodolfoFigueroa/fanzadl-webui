@@ -31,7 +31,6 @@ from fanzadl_webui.routes import (
     images,
     library,
     notifications,
-    refresh_library,
     settings,
     streams,
     url,
@@ -337,7 +336,6 @@ async def _security_headers_middleware(
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(library.router, prefix="/api")
-app.include_router(refresh_library.router, prefix="/api")
 app.include_router(url.router, prefix="/api")
 app.include_router(streams.router, prefix="/api")
 app.include_router(download.router, prefix="/api")

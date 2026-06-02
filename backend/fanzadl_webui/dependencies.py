@@ -1,3 +1,4 @@
+import os
 import secrets
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -53,3 +54,8 @@ def require_api_key(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or missing API key",
     )
+
+
+def require_dev_mode() -> None:
+    if os.environ.get("FANZADL_DEV") != "1":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)

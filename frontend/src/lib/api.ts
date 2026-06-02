@@ -109,7 +109,7 @@ export async function getLibrary(): Promise<Record<string, LibraryItem>> {
 }
 
 export async function refreshLibrary(): Promise<void> {
-    await apiFetch('/api/refresh_library/', { method: 'POST' });
+    await apiFetch('/api/library/refresh/', { method: 'POST' });
 }
 
 export async function getExpiredLibrary(): Promise<
