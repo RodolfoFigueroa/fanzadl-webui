@@ -14,6 +14,7 @@ import {
     testWebhook,
     updateSettings,
 } from '$lib/api';
+import Button from '$lib/components/Button.svelte';
 import {
     DEFAULT_MULTI_PART_TEMPLATE,
     DEFAULT_SINGLE_PART_TEMPLATE,
@@ -400,7 +401,7 @@ let cronResult = $derived.by<CronResult>(() => {
                 <p class="text-xs text-red-400">{downloadError}</p>
             {/if}
             <div class="pt-1">
-                <button
+                <Button
                     onclick={async () => {
                         downloadSaving = true;
                         downloadError = '';
@@ -415,12 +416,9 @@ let cronResult = $derived.by<CronResult>(() => {
                             downloadSaving = false;
                         }
                     }}
-                    disabled={downloadSaving}
-                    class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
-                        text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
-                >
-                    {downloadSaving ? 'Saving…' : 'Save'}
-                </button>
+                    loading={downloadSaving}
+                    loadingText="Saving…"
+                >Save</Button>
             </div>
 
         {:else if activeTab === 'javstash'}
@@ -451,23 +449,19 @@ let cronResult = $derived.by<CronResult>(() => {
                             focus:outline-none focus:ring-2 focus:ring-th-border-strong focus:border-transparent
                             transition-shadow disabled:opacity-50"
                     />
-                    <button
+                    <Button
+                        variant="secondary"
                         onclick={handleSaveJavstashKey}
-                        disabled={javstashSaving || !javstashKeyInput.trim()}
-                        class="px-3 py-2 text-sm rounded-lg border border-th-border hover:border-th-border-strong
-                            text-th-text-muted hover:text-th-text transition-colors disabled:opacity-40"
-                    >
-                        Save
-                    </button>
+                        loading={javstashSaving}
+                        disabled={!javstashKeyInput.trim()}
+                        loadingText="Saving…"
+                    >Save</Button>
                     {#if javstashEnabled}
-                        <button
+                        <Button
+                            variant="ghost-destructive"
                             onclick={handleClearJavstashKey}
                             disabled={javstashSaving}
-                            class="px-3 py-2 text-sm rounded-lg border border-th-border hover:border-red-800
-                                text-th-text-dim hover:text-red-400 transition-colors disabled:opacity-40"
-                        >
-                            Clear
-                        </button>
+                        >Clear</Button>
                     {/if}
                 </div>
                 {#if javstashError}
@@ -569,7 +563,7 @@ let cronResult = $derived.by<CronResult>(() => {
                 <p class="text-xs text-red-400">{filenamesError}</p>
             {/if}
             <div class="pt-1">
-                <button
+                <Button
                     onclick={async () => {
                         filenamesSaving = true;
                         filenamesError = '';
@@ -584,12 +578,10 @@ let cronResult = $derived.by<CronResult>(() => {
                             filenamesSaving = false;
                         }
                     }}
-                    disabled={filenamesSaving || singlePartErrors.length > 0 || multiPartErrors.length > 0}
-                    class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
-                        text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
-                >
-                    {filenamesSaving ? 'Saving…' : 'Save'}
-                </button>
+                    loading={filenamesSaving}
+                    disabled={singlePartErrors.length > 0 || multiPartErrors.length > 0}
+                    loadingText="Saving…"
+                >Save</Button>
             </div>
 
         {:else if activeTab === 'logging'}
@@ -620,7 +612,7 @@ let cronResult = $derived.by<CronResult>(() => {
                 <p class="text-xs text-red-400">{loggingError}</p>
             {/if}
             <div class="pt-1">
-                <button
+                <Button
                     onclick={async () => {
                         loggingSaving = true;
                         loggingError = '';
@@ -632,12 +624,9 @@ let cronResult = $derived.by<CronResult>(() => {
                             loggingSaving = false;
                         }
                     }}
-                    disabled={loggingSaving}
-                    class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
-                        text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
-                >
-                    {loggingSaving ? 'Saving…' : 'Save'}
-                </button>
+                    loading={loggingSaving}
+                    loadingText="Saving…"
+                >Save</Button>
             </div>
 
         {:else if activeTab === 'schedule'}
@@ -730,7 +719,7 @@ let cronResult = $derived.by<CronResult>(() => {
                 <p class="text-xs text-red-400">{scheduleError}</p>
             {/if}
             <div class="pt-1">
-                <button
+                <Button
                     onclick={async () => {
                         scheduleSaving = true;
                         scheduleError = '';
@@ -747,12 +736,10 @@ let cronResult = $derived.by<CronResult>(() => {
                             scheduleSaving = false;
                         }
                     }}
-                    disabled={scheduleSaving || (scheduleEnabled && !cronResult.ok)}
-                    class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
-                        text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
-                >
-                    {scheduleSaving ? 'Saving…' : 'Save'}
-                </button>
+                    loading={scheduleSaving}
+                    disabled={scheduleEnabled && !cronResult.ok}
+                    loadingText="Saving…"
+                >Save</Button>
             </div>
 
         {:else if activeTab === 'webhook'}
@@ -788,13 +775,11 @@ let cronResult = $derived.by<CronResult>(() => {
                 {#if webhookSecretConfigured && !webhookSecretClearing}
                     <div class="flex items-center gap-3">
                         <span class="text-xs text-th-text-dim">Secret configured</span>
-                        <button
+                        <Button
+                            variant="ghost-destructive"
+                            size="sm"
                             onclick={() => (webhookSecretClearing = true)}
-                            class="px-3 py-1.5 text-xs rounded-lg border border-th-border
-                                text-th-text-dim hover:text-red-400 hover:border-red-800 transition-colors"
-                        >
-                            Clear secret
-                        </button>
+                        >Clear secret</Button>
                     </div>
                 {:else}
                     <input
@@ -875,7 +860,7 @@ let cronResult = $derived.by<CronResult>(() => {
                 {/if}
             {/if}
             <div class="flex gap-3 pt-1">
-                <button
+                <Button
                     onclick={async () => {
                         webhookSaving = true;
                         webhookError = '';
@@ -901,13 +886,11 @@ let cronResult = $derived.by<CronResult>(() => {
                             webhookSaving = false;
                         }
                     }}
-                    disabled={webhookSaving}
-                    class="px-4 py-2 text-sm rounded-lg border border-th-border-strong
-                        text-th-text hover:bg-th-border/20 transition-colors disabled:opacity-40"
-                >
-                    {webhookSaving ? 'Saving…' : 'Save'}
-                </button>
-                <button
+                    loading={webhookSaving}
+                    loadingText="Saving…"
+                >Save</Button>
+                <Button
+                    variant="secondary"
                     onclick={async () => {
                         webhookTesting = true;
                         webhookTestResult = null;
@@ -919,13 +902,10 @@ let cronResult = $derived.by<CronResult>(() => {
                             webhookTesting = false;
                         }
                     }}
-                    disabled={webhookTesting || !webhookUrl.trim()}
-                    class="px-4 py-2 text-sm rounded-lg border border-th-border
-                        text-th-text-muted hover:text-th-text hover:border-th-border-strong
-                        transition-colors disabled:opacity-40"
-                >
-                    {webhookTesting ? 'Testing…' : 'Test'}
-                </button>
+                    loading={webhookTesting}
+                    disabled={!webhookUrl.trim()}
+                    loadingText="Testing…"
+                >Test</Button>
             </div>
 
         {:else if activeTab === 'api'}
@@ -991,13 +971,11 @@ let cronResult = $derived.by<CronResult>(() => {
                                     {/if}
                                 </button>
                             </div>
-                            <button
+                            <Button
+                                variant="secondary"
                                 onclick={handleCopyApiKey}
-                                class="px-3 py-2 text-sm rounded-lg border border-th-border hover:border-th-border-strong
-                                    text-th-text-muted hover:text-th-text transition-colors min-w-[4.5rem]"
-                            >
-                                {apiKeyCopied ? 'Copied!' : 'Copy'}
-                            </button>
+                                class="min-w-[4.5rem]"
+                            >{apiKeyCopied ? 'Copied!' : 'Copy'}</Button>
                         </div>
                     </div>
                 {/if}
@@ -1007,33 +985,27 @@ let cronResult = $derived.by<CronResult>(() => {
                             Rotating will invalidate the current key. Existing clients will stop working.
                         </p>
                         <div class="flex gap-2">
-                            <button
+                            <Button
+                                variant="destructive"
+                                size="sm"
                                 onclick={handleRotateApiKey}
-                                disabled={apiKeyRotating}
-                                class="px-3 py-1.5 text-xs rounded-lg border border-red-800 text-red-400
-                                    hover:bg-red-900/20 transition-colors disabled:opacity-40 whitespace-nowrap"
-                            >
-                                Confirm rotate
-                            </button>
-                            <button
+                                loading={apiKeyRotating}
+                                loadingText="Rotating…"
+                            >Confirm rotate</Button>
+                            <Button
+                                variant="secondary"
+                                size="sm"
                                 onclick={() => (apiKeyConfirming = false)}
-                                class="px-3 py-1.5 text-xs rounded-lg border border-th-border
-                                    text-th-text-dim hover:text-th-text transition-colors whitespace-nowrap"
-                            >
-                                Cancel
-                            </button>
+                            >Cancel</Button>
                         </div>
                     </div>
                 {:else}
-                    <button
+                    <Button
+                        variant="ghost-destructive"
+                        class="mt-1"
                         onclick={handleRotateApiKey}
                         disabled={apiKeyRotating}
-                        class="mt-1 px-3 py-2 text-sm rounded-lg border border-th-border
-                            hover:border-red-800 text-th-text-dim hover:text-red-400
-                            transition-colors disabled:opacity-40"
-                    >
-                        Rotate key
-                    </button>
+                    >Rotate key</Button>
                 {/if}
                 {#if apiKeyError}
                     <p class="text-xs text-red-400 mt-1">{apiKeyError}</p>
@@ -1226,12 +1198,9 @@ let cronResult = $derived.by<CronResult>(() => {
 
     </div>
 
-    <button
+    <Button
+        variant="ghost-destructive"
+        class="sm:hidden mt-4 w-full"
         onclick={handleLogout}
-        style="cursor: pointer"
-        class="sm:hidden mt-4 w-full text-sm text-th-text-dim hover:text-red-400 border border-th-border
-            hover:border-red-800 rounded-xl py-3 transition-colors"
-    >
-        Logout
-    </button>
+    >Logout</Button>
 </div>
