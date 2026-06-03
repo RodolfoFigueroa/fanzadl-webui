@@ -19,13 +19,15 @@ import Select from '$lib/components/Select.svelte';
 import TextInput from '$lib/components/TextInput.svelte';
 import VideoCard from '$lib/components/VideoCard.svelte';
 import type { LibraryItem } from '$lib/types';
+import type { PageData } from './$types';
 
+let { data }: { data: PageData } = $props();
 const _cached = getCachedLibrary();
 let library = $state<LibraryItem[]>(_cached ? Object.values(_cached) : []);
 let expiredLibrary = $state<LibraryItem[]>([]);
-let loading = $state(_cached === null);
+let loading = $state(_cached === null && data.fanzaConnected !== false);
 let error = $state('');
-let fanzaNotConnected = $state(false);
+let fanzaNotConnected = $state(data.fanzaConnected === false);
 let refreshing = $state(false);
 let selectedItem = $state<LibraryItem | null>(null);
 let javstashEnabled = $state(false);
@@ -118,14 +120,15 @@ const filteredExpiredLibrary = $derived(
 
 async function loadLibrary() {
     error = '';
-    fanzaNotConnected = false;
     try {
         const data = await getLibrary();
         library = Object.values(data);
+        fanzaNotConnected = false;
     } catch (e) {
         if (e instanceof Error && e.message === 'fanza_not_connected') {
             fanzaNotConnected = true;
         } else {
+            fanzaNotConnected = false;
             error = e instanceof Error ? e.message : 'Failed to load library';
         }
     } finally {

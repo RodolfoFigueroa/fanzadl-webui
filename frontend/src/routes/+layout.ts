@@ -15,10 +15,15 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
         redirect(302, '/');
     }
 
-    const authDisabled: boolean = authenticated
-        ? (((await res.json()) as { auth_disabled: boolean }).auth_disabled ??
-          false)
-        : false;
+    const settingsJson = authenticated
+        ? ((await res.json()) as {
+              auth_disabled: boolean;
+              fanza_connected: boolean;
+          })
+        : null;
 
-    return { authenticated, authDisabled };
+    const authDisabled: boolean = settingsJson?.auth_disabled ?? false;
+    const fanzaConnected: boolean = settingsJson?.fanza_connected ?? false;
+
+    return { authenticated, authDisabled, fanzaConnected };
 };
