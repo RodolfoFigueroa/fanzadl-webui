@@ -16,6 +16,8 @@ import {
 import Button from '$lib/components/Button.svelte';
 import DownloadModal from '$lib/components/DownloadModal.svelte';
 import ErrorAlert from '$lib/components/ErrorAlert.svelte';
+import type { ColumnDef, ColumnId } from '$lib/components/LibraryTable.svelte';
+import LibraryTable from '$lib/components/LibraryTable.svelte';
 import Select from '$lib/components/Select.svelte';
 import TextInput from '$lib/components/TextInput.svelte';
 import VideoCard from '$lib/components/VideoCard.svelte';
@@ -45,8 +47,133 @@ let sortAsc = $state(false);
 let searchQuery = $state('');
 let contentTypeFilter = $state<'all' | 'video' | 'vr'>('all');
 
-const pageSize = 24;
+const STORAGE_KEY = 'fanzadl_library_settings';
+const ALL_COLUMN_IDS: ColumnId[] = [
+    'image',
+    'content_id',
+    'title',
+    'content_type',
+    'purchase_date',
+    'downloaded_parts',
+    'expire',
+    'links',
+    'download',
+];
+const COLUMN_LABELS: Record<ColumnId, string> = {
+    image: 'Image',
+    content_id: 'Content ID',
+    title: 'Title',
+    content_type: 'Type',
+    purchase_date: 'Purchased',
+    downloaded_parts: 'Downloaded',
+    expire: 'Expires',
+    links: 'Links',
+    download: 'Action',
+};
+const MOBILE_VISIBLE_COLUMNS = new Set<ColumnId>([
+    'image',
+    'content_id',
+    'download',
+]);
+
+function makeDefaultColumns(): ColumnDef[] {
+    const isMobile = window.innerWidth < 640;
+    return ALL_COLUMN_IDS.map((id) => ({
+        id,
+        label: COLUMN_LABELS[id],
+        visible: isMobile ? MOBILE_VISIBLE_COLUMNS.has(id) : true,
+    }));
+}
+
+function loadSettings(): { view: 'card' | 'table'; columns: ColumnDef[] } {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return { view: 'card', columns: makeDefaultColumns() };
+        const parsed = JSON.parse(raw);
+        const view: 'card' | 'table' =
+            parsed.view === 'table' ? 'table' : 'card';
+        let columns: ColumnDef[] = makeDefaultColumns();
+        if (Array.isArray(parsed.columns)) {
+            const validIds = new Set(ALL_COLUMN_IDS);
+            const stored: { id: ColumnId; visible: boolean }[] = (
+                parsed.columns as unknown[]
+            ).filter(
+                (c): c is { id: ColumnId; visible: boolean } =>
+                    typeof c === 'object' &&
+                    c !== null &&
+                    validIds.has((c as { id: ColumnId }).id) &&
+                    typeof (c as { visible: boolean }).visible === 'boolean',
+            );
+            const storedIds = new Set(stored.map((c) => c.id));
+            const missing = makeDefaultColumns().filter(
+                (c) => !storedIds.has(c.id),
+            );
+            columns = [
+                ...stored.map((c) => ({
+                    id: c.id,
+                    label: COLUMN_LABELS[c.id],
+                    visible: c.visible,
+                })),
+                ...missing,
+            ];
+        }
+        return { view, columns };
+    } catch {
+        return { view: 'card', columns: makeDefaultColumns() };
+    }
+}
+
+function saveSettings(v: 'card' | 'table', cols: ColumnDef[]) {
+    try {
+        localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+                view: v,
+                columns: cols.map(({ id, visible }) => ({ id, visible })),
+            }),
+        );
+    } catch {
+        // ignore storage errors
+    }
+}
+
+const _initialSettings = loadSettings();
+let view = $state<'card' | 'table'>(_initialSettings.view);
+let tableColumns = $state<ColumnDef[]>(_initialSettings.columns);
+let showColumnPanel = $state(false);
+
+const pageSize = $derived(view === 'table' ? 50 : 24);
 let page = $state(1);
+
+function handleSort(field: SortField) {
+    if (sortField === field) {
+        sortAsc = !sortAsc;
+    } else {
+        sortField = field;
+        sortAsc = false;
+    }
+}
+
+function toggleColumn(idx: number) {
+    tableColumns = tableColumns.map((c, i) =>
+        i === idx ? { ...c, visible: !c.visible } : c,
+    );
+    saveSettings(view, tableColumns);
+}
+
+function moveColumnUp(idx: number) {
+    const arr = [...tableColumns];
+    [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+    tableColumns = arr;
+    saveSettings(view, tableColumns);
+}
+
+function moveColumnDown(idx: number) {
+    const arr = [...tableColumns];
+    [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+    tableColumns = arr;
+    saveSettings(view, tableColumns);
+}
 
 function daysLeft(expireStr: string): number {
     const today = new Date();
@@ -130,12 +257,17 @@ const paginatedLibrary = $derived(
 );
 
 $effect(() => {
-    // reset to page 1 whenever filters or sort change
+    // reset to page 1 whenever filters, sort, or view mode change
     void _queryLower;
     void contentTypeFilter;
     void sortField;
     void sortAsc;
+    void view;
     page = 1;
+});
+
+$effect(() => {
+    saveSettings(view, tableColumns);
 });
 
 async function loadLibrary() {
@@ -290,25 +422,94 @@ onDestroy(() => {
 			<option value="video">Video</option>
 			<option value="vr">VR</option>
 		</Select>
-		<Select
-			bind:value={sortField}
-			class="min-w-[9rem]"
-		>
-			<option value="purchase_date">Date purchased</option>
-			<option value="title">Title</option>
-			<option value="parts">Part count</option>
-			<option value="expire">Days left</option>
-			<option value="content_id">Content ID</option>
-		</Select>
-		<button
-			onclick={() => (sortAsc = !sortAsc)}
-			title={sortAsc ? "Ascending" : "Descending"}
-			class="bg-th-input border border-th-border hover:border-th-border-strong text-th-text
-				text-sm rounded-lg py-1.5 px-3 transition-colors select-none"
-		>
-			{sortAsc ? "↑" : "↓"}
-		</button>
+		{#if view === 'card'}
+			<Select
+				bind:value={sortField}
+				class="min-w-[9rem]"
+			>
+				<option value="purchase_date">Date purchased</option>
+				<option value="title">Title</option>
+				<option value="parts">Part count</option>
+				<option value="expire">Days left</option>
+				<option value="content_id">Content ID</option>
+			</Select>
+			<button
+				onclick={() => (sortAsc = !sortAsc)}
+				title={sortAsc ? "Ascending" : "Descending"}
+				class="bg-th-input border border-th-border hover:border-th-border-strong text-th-text
+					text-sm rounded-lg py-1.5 px-3 transition-colors select-none"
+			>
+				{sortAsc ? "↑" : "↓"}
+			</button>
+		{/if}
+		{#if view === 'table'}
+			<button
+				onclick={() => (showColumnPanel = !showColumnPanel)}
+				title="Configure columns"
+				class="bg-th-input border transition-colors select-none text-sm rounded-lg py-1.5 px-3
+					{showColumnPanel
+						? 'border-th-border-strong text-th-text'
+						: 'border-th-border hover:border-th-border-strong text-th-text-muted hover:text-th-text'}"
+			>
+				Columns
+			</button>
+		{/if}
+		<!-- View toggle -->
+		<div class="flex items-center rounded-lg border border-th-border overflow-hidden ml-auto">
+			<button
+				onclick={() => { view = 'card'; showColumnPanel = false; }}
+				title="Card view"
+				class="px-2.5 py-1.5 transition-colors
+					{view === 'card' ? 'bg-th-input-nested text-th-text' : 'bg-th-input text-th-text-dim hover:text-th-text'}"
+			>
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+						d="M4 5h4v4H4zM10 5h4v4h-4zM16 5h4v4h-4zM4 11h4v4H4zM10 11h4v4h-4zM16 11h4v4h-4zM4 17h4v4H4zM10 17h4v4h-4zM16 17h4v4h-4z" />
+				</svg>
+			</button>
+			<button
+				onclick={() => (view = 'table')}
+				title="Table view"
+				class="px-2.5 py-1.5 transition-colors
+					{view === 'table' ? 'bg-th-input-nested text-th-text' : 'bg-th-input text-th-text-dim hover:text-th-text'}"
+			>
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+						d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+				</svg>
+			</button>
+		</div>
 	</div>
+	{#if showColumnPanel && view === 'table'}
+		<div class="mb-4 p-3 bg-th-input rounded-xl border border-th-border">
+			<p class="text-xs font-medium text-th-text-dim mb-2">Column visibility &amp; order</p>
+			<div class="flex flex-col gap-1">
+				{#each tableColumns as col, i (col.id)}
+					<div class="flex items-center gap-2">
+						<input
+							type="checkbox"
+							checked={col.visible}
+							onchange={() => toggleColumn(i)}
+							class="accent-th-accent"
+						/>
+						<span class="text-sm text-th-text flex-1">{col.label}</span>
+						<button
+							onclick={() => moveColumnUp(i)}
+							disabled={i === 0}
+							class="text-th-text-dim hover:text-th-text disabled:opacity-30 disabled:cursor-not-allowed px-1"
+							title="Move up"
+						>↑</button>
+						<button
+							onclick={() => moveColumnDown(i)}
+							disabled={i === tableColumns.length - 1}
+							class="text-th-text-dim hover:text-th-text disabled:opacity-30 disabled:cursor-not-allowed px-1"
+							title="Move down"
+						>↓</button>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
 {/if}
 
 {#if loading}
@@ -385,13 +586,27 @@ onDestroy(() => {
 		{/if}
 	</p>
 {:else}
-	<div
-		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
-	>
-		{#each paginatedLibrary as item (item.mylibrary_id)}
-			<VideoCard {item} {javstashEnabled} downloadedCount={downloadCounts[item.content_id] ?? 0} activeDownloadCount={activeDownloadCounts[item.content_id] ?? 0} onDownload={(i) => (selectedItem = i)} />
-		{/each}
-	</div>
+	{#if view === 'card'}
+		<div
+			class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+		>
+			{#each paginatedLibrary as item (item.mylibrary_id)}
+				<VideoCard {item} {javstashEnabled} downloadedCount={downloadCounts[item.content_id] ?? 0} activeDownloadCount={activeDownloadCounts[item.content_id] ?? 0} onDownload={(i) => (selectedItem = i)} />
+			{/each}
+		</div>
+	{:else}
+		<LibraryTable
+			items={paginatedLibrary}
+			columns={tableColumns}
+			{javstashEnabled}
+			{downloadCounts}
+			{activeDownloadCounts}
+			{sortField}
+			{sortAsc}
+			onSort={handleSort}
+			onDownload={(i) => (selectedItem = i)}
+		/>
+	{/if}
 	{#if totalPages > 1}
 		<div class="flex items-center justify-center gap-3 pt-4">
 			<Button
@@ -419,25 +634,47 @@ onDestroy(() => {
 		<h2 class="text-base font-semibold text-th-text-dim">Expired</h2>
 		<span class="text-xs text-th-text-faint bg-th-input rounded-full px-2 py-0.5">{expiredLibrary.length}</span>
 	</div>
-	<div
-		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
-	>
-		{#each filteredExpiredLibrary as item (item.mylibrary_id)}
-			<VideoCard
-				{item}
-				expired={true}
-				{javstashEnabled}
-				onDelete={async (i) => {
-					try {
-						await deleteExpiredItem(i.mylibrary_id);
-						expiredLibrary = expiredLibrary.filter((e) => e.mylibrary_id !== i.mylibrary_id);
-					} catch (e) {
-						error = e instanceof Error ? e.message : 'Failed to remove expired item';
-					}
-				}}
-			/>
-		{/each}
-	</div>
+	{#if view === 'card'}
+		<div
+			class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+		>
+			{#each filteredExpiredLibrary as item (item.mylibrary_id)}
+				<VideoCard
+					{item}
+					expired={true}
+					{javstashEnabled}
+					onDelete={async (i) => {
+						try {
+							await deleteExpiredItem(i.mylibrary_id);
+							expiredLibrary = expiredLibrary.filter((e) => e.mylibrary_id !== i.mylibrary_id);
+						} catch (e) {
+							error = e instanceof Error ? e.message : 'Failed to remove expired item';
+						}
+					}}
+				/>
+			{/each}
+		</div>
+	{:else}
+		<LibraryTable
+			items={filteredExpiredLibrary}
+			columns={tableColumns}
+			{javstashEnabled}
+			{downloadCounts}
+			{activeDownloadCounts}
+			{sortField}
+			{sortAsc}
+			onSort={handleSort}
+			expired={true}
+			onDelete={async (i) => {
+				try {
+					await deleteExpiredItem(i.mylibrary_id);
+					expiredLibrary = expiredLibrary.filter((e) => e.mylibrary_id !== i.mylibrary_id);
+				} catch (e) {
+					error = e instanceof Error ? e.message : 'Failed to remove expired item';
+				}
+			}}
+		/>
+	{/if}
 {/if}
 
 {#if selectedItem}
