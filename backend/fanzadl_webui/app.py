@@ -43,10 +43,8 @@ from fanzadl_webui.store.token import delete_tokens, load_tokens, save_tokens
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.base import RequestResponseEndpoint
-from starlette.requests import Request
 from starlette.responses import Response
-from starlette.types import Scope
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 _MAX_BODY_BYTES = 64 * 1024  # 64 KB
 
@@ -277,46 +275,87 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 app = FastAPI(lifespan=lifespan)
 
 
-@app.middleware("http")
-async def _max_body_size_middleware(
-    request: Request, call_next: RequestResponseEndpoint
-) -> Response:
-    content_length = request.headers.get("content-length")
-    if content_length is not None:
-        try:
-            if int(content_length) > _MAX_BODY_BYTES:
-                return Response(content="Request body too large", status_code=413)
-        except ValueError:
-            pass
-    return await call_next(request)
+class MaxBodySizeMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = {
+            key.decode("latin-1"): value.decode("latin-1")
+            for key, value in scope["headers"]
+        }
+        content_length = headers.get("content-length")
+        if content_length is not None:
+            try:
+                if int(content_length) > _MAX_BODY_BYTES:
+                    response = Response(
+                        content="Request body too large", status_code=413
+                    )
+                    await response(scope, receive, send)
+                    return
+            except ValueError:
+                pass
+
+        await self.app(scope, receive, send)
 
 
-@app.middleware("http")
-async def _security_headers_middleware(
-    request: Request, call_next: RequestResponseEndpoint
-) -> Response:
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-    if request.url.path in ("/docs", "/redoc", "/openapi.json"):
-        response.headers["Content-Security-Policy"] = (
+class SecurityHeadersMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_security_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message["headers"])
+                headers.extend(
+                    [
+                        (b"x-content-type-options", b"nosniff"),
+                        (b"x-frame-options", b"DENY"),
+                        (b"referrer-policy", b"no-referrer"),
+                        (
+                            b"permissions-policy",
+                            b"geolocation=(), microphone=(), camera=()",
+                        ),
+                        (
+                            b"content-security-policy",
+                            _content_security_policy(scope["path"]),
+                        ),
+                    ]
+                )
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_security_headers)
+
+
+def _content_security_policy(path: str) -> bytes:
+    if path in ("/docs", "/redoc", "/openapi.json"):
+        return (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
             "img-src 'self' data: blob: fastapi.tiangolo.com; "
             "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
             "connect-src 'self'"
-        )
-    else:
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: blob:; "
-            "style-src 'self' 'unsafe-inline'; "
-            "connect-src 'self'"
-        )
-    return response
+        ).encode("latin-1")
+    return (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "connect-src 'self'"
+    ).encode("latin-1")
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(MaxBodySizeMiddleware)
 
 
 app.include_router(auth.router, prefix="/api")
