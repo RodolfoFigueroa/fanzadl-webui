@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.2](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.4.1...v1.4.2) (2026-06-03)
+
+
+### Bug Fixes
+
+* Fix content type error on new items ([013fae6](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/013fae64d9d711933f77792f2127966fef963c52))
+
+
+### Visual Style
+
+* Improve info for expired items ([842a191](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/842a191e3a631504d322cf912086eee33d0b789e))
+
 ## [1.4.1](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.4.0...v1.4.1) (2026-06-03)
 
 
