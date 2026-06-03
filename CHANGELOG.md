@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.4.0...v1.4.1) (2026-06-03)
+
+
+### Bug Fixes
+
+* Fix crash when JS returned no items ([942df52](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/942df52fe298614c653ccacc97b9afbbbd1a60e7))
+
 ## [1.4.0](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.3.0...v1.4.0) (2026-06-03)
 
 
