@@ -1,14 +1,15 @@
 # FanzaDL WebUI
 
-A web interface for browsing your FANZA purchased video library and downloading content.
+A web interface for browsing your FANZA video library and downloading content.
 
 ## Features
 
-- Browse your full FANZA library with cover art and purchase details
-- Select stream quality (resolution, bitrate, codec) per video or per part
-- Track download progress in real time
-- Support for multi-part videos with independent part selection
-- Copy stream URLs for use in external players/downloaders
+- Browse your full FANZA library with cover art and video details
+- Download all parts of a video in one click, with support for multiple quality options
+- Parallel downloads with real-time progress tracking and speed monitoring
+- Configurable output filename templates
+- Automatic library updates - new videos added to your library will automatically get downloaded
+- Generate video stream URLs for use in external players/downloaders
 
 ## Prerequisites
 
@@ -49,21 +50,27 @@ The following environment variables can be set in your `.env` file:
 
 ## Accessing the UI
 
-Open [http://localhost:4352](http://localhost:4352) in your browser.
+Open [http://localhost:4352](http://localhost:4352) in your browser. The first time you launch the app, it will automatically generate a temporary password for you to log in with. You can find this password in the container logs:
+
+```sh
+WARNING: App password generated: <password>
+```
+
+You can change this password after logging in from the **Settings** page.
 
 ## Usage
 
-**First login**
-
-The first time you access the UI, you will be prompted to enter your FANZA email and password. This information is only used to generate authentication tokens, and then discarded. It is never stored or transmitted. You can log out and log in with a different account at any time.
-
 **Library**
 
-The homepage shows all videos in your FANZA library. Click a video card to open the download dialog, where you can choose the download quality before starting the download.
+The homepage shows all videos in your FANZA library. Click a video card to open the download dialog, where you can choose the download quality and preview the output path before starting the download.
 
 **Downloads**
 
 The **Downloads** page lists all active and completed download jobs with real-time progress, speed, and segment counts. You can stop an active download at any time.
+
+**History**
+
+The **History** page shows a log of all past download attempts, including successes and failures, with timestamps and error messages if applicable.
 
 **Settings**
 
