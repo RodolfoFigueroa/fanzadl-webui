@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.4.0](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.3.0...v1.4.0) (2026-06-03)
+
+
+### Features
+
+* Add library pagination ([cec44fd](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/cec44fd994a85ac2ea7fd143409ab087ea4c8385))
+* Add library table view ([f590d1b](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/f590d1bbb31796e4336cc7ff1867903d8b0ad03a))
+
+
+### Bug Fixes
+
+* Centralize update procedure to prevent cache bugs ([dd49fb2](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/dd49fb22885c8d37d178f8b1e42edfb368061c20))
+* Fix unauthenticated library FOUC ([760e50f](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/760e50f31c4f29b7a02fb306d7abcba27ccc3eba))
+* Remove static assets from logs ([0a9b72f](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/0a9b72ff80928eeda3b68a50f9b6a307192e8e25))
+
+
+### Visual Style
+
+* Reorg tabs ([24ab0dd](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/24ab0dd3b988b867d6d824c7f9ff07267180b5a9))
+
 ## [1.3.0](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.2.2...v1.3.0) (2026-06-02)
 
 
