@@ -237,7 +237,10 @@ async function sseOnOpen(response: Response): Promise<void> {
         throw new Error('Unauthenticated');
     }
     const contentType = response.headers.get('content-type');
-    if (!contentType?.startsWith('text/event-stream')) {
+    const hasEventStream =
+        contentType != null &&
+        /(?:^|,)\s*text\/event-stream(?:\s*(?:;|$))/.test(contentType);
+    if (!hasEventStream) {
         throw new Error(
             `Expected text/event-stream, got ${contentType ?? 'none'}`,
         );
