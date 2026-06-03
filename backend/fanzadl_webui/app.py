@@ -61,6 +61,13 @@ def _setup_logging(default_log_level: str, config: AppConfig) -> None:
     )
     logging.getLogger().setLevel(config.log_level)
 
+    class _StaticAssetFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            msg = record.getMessage()
+            return "/_app/" not in msg
+
+    logging.getLogger("uvicorn.access").addFilter(_StaticAssetFilter())
+
 
 def _load_or_create_config(default_log_level: str) -> AppConfig:
     config_exists = CONFIG_PATH.exists()
