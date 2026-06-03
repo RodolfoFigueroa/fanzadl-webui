@@ -13,6 +13,7 @@ import {
     subscribeGlobalJobEvents,
     subscribeLibraryEvents,
 } from '$lib/api';
+import Button from '$lib/components/Button.svelte';
 import DownloadModal from '$lib/components/DownloadModal.svelte';
 import ErrorAlert from '$lib/components/ErrorAlert.svelte';
 import Select from '$lib/components/Select.svelte';
@@ -43,6 +44,9 @@ let sortField = $state<SortField>('purchase_date');
 let sortAsc = $state(false);
 let searchQuery = $state('');
 let contentTypeFilter = $state<'all' | 'video' | 'vr'>('all');
+
+const pageSize = 24;
+let page = $state(1);
 
 function daysLeft(expireStr: string): number {
     const today = new Date();
@@ -117,6 +121,22 @@ const filteredExpiredLibrary = $derived(
                 i.content_id.toLowerCase().includes(_queryLower)),
     ),
 );
+
+const totalPages = $derived(
+    Math.max(1, Math.ceil(filteredLibrary.length / pageSize)),
+);
+const paginatedLibrary = $derived(
+    filteredLibrary.slice((page - 1) * pageSize, page * pageSize),
+);
+
+$effect(() => {
+    // reset to page 1 whenever filters or sort change
+    void _queryLower;
+    void contentTypeFilter;
+    void sortField;
+    void sortAsc;
+    page = 1;
+});
 
 async function loadLibrary() {
     error = '';
@@ -368,10 +388,30 @@ onDestroy(() => {
 	<div
 		class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
 	>
-		{#each filteredLibrary as item (item.mylibrary_id)}
+		{#each paginatedLibrary as item (item.mylibrary_id)}
 			<VideoCard {item} {javstashEnabled} downloadedCount={downloadCounts[item.content_id] ?? 0} activeDownloadCount={activeDownloadCounts[item.content_id] ?? 0} onDownload={(i) => (selectedItem = i)} />
 		{/each}
 	</div>
+	{#if totalPages > 1}
+		<div class="flex items-center justify-center gap-3 pt-4">
+			<Button
+				variant="secondary"
+				size="sm"
+				onclick={() => (page -= 1)}
+				disabled={page <= 1}
+			>Previous</Button>
+			<span class="text-sm text-th-text-muted">
+				Page {page} of {totalPages}
+				<span class="text-th-text-dim ml-1">({filteredLibrary.length} total)</span>
+			</span>
+			<Button
+				variant="secondary"
+				size="sm"
+				onclick={() => (page += 1)}
+				disabled={page >= totalPages}
+			>Next</Button>
+		</div>
+	{/if}
 {/if}
 
 {#if expiredLibrary.length > 0}
