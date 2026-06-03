@@ -7,6 +7,9 @@ if TYPE_CHECKING:
     from fanzadl_webui.state import AppState
 from collections.abc import Callable
 
+from fanzadl_webui.dependencies import LIBRARY_DB_PATH
+from fanzadl_webui.library_db import get_all_items
+
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)(?::([^}]*))?\}")
 _ILLEGAL_CHARS_RE = re.compile(r'[\\:*?"<>|]')
 
@@ -99,6 +102,12 @@ def render_template(
     return _PLACEHOLDER_RE.sub(_replace, template)
 
 
+def _item_value(item: object, field: str) -> str | int | None:
+    if isinstance(item, dict):
+        return item.get(field)
+    return getattr(item, field)
+
+
 def scan_download_counts(
     library_items: dict,
     single_template: str,
@@ -125,25 +134,27 @@ def scan_download_counts(
     for item in library_items.values():
         # Build fields dict matching LibraryItemResponse fields
         fields: dict[str, str | int | None] = {
-            "mylibrary_id": item.mylibrary_id,
-            "content_id": item.content_id,
-            "title": item.title,
-            "content_type": item.content_type,
-            "parts": item.parts,
-            "javstash_id": getattr(item, "javstash_id", None),
-            "javstash_studio_code": getattr(item, "javstash_studio_code", None),
+            "mylibrary_id": _item_value(item, "mylibrary_id"),
+            "content_id": _item_value(item, "content_id"),
+            "title": _item_value(item, "title"),
+            "content_type": _item_value(item, "content_type"),
+            "parts": _item_value(item, "parts"),
+            "javstash_id": _item_value(item, "javstash_id"),
+            "javstash_studio_code": _item_value(item, "javstash_studio_code"),
         }
+        content_id = str(fields["content_id"])
+        parts = int(fields["parts"] or 0)
 
         # parts==0 is treated as a single part accessed via part index 0,
         # matching the DownloadModal convention.
-        if item.parts == 0:
+        if parts == 0:
             rendered = render_template(single_template, fields, 0)
-            counts[item.content_id] = int((download_dir / f"{rendered}.mp4").exists())
-        elif item.parts == 1:
+            counts[content_id] = int((download_dir / f"{rendered}.mp4").exists())
+        elif parts == 1:
             rendered = render_template(single_template, fields, 1)
-            counts[item.content_id] = int((download_dir / f"{rendered}.mp4").exists())
+            counts[content_id] = int((download_dir / f"{rendered}.mp4").exists())
         else:
-            total = item.parts
+            total = parts
             found = sum(
                 1
                 for p in range(1, total + 1)
@@ -151,7 +162,7 @@ def scan_download_counts(
                     download_dir / f"{render_template(multi_template, fields, p)}.mp4"
                 ).exists()
             )
-            counts[item.content_id] = found
+            counts[content_id] = found
 
     return counts
 
@@ -175,9 +186,12 @@ async def rescan_and_store(app_state: "AppState") -> None:
     if manager is None:
         return
 
+    library_items: dict[int, object] = dict(get_all_items(LIBRARY_DB_PATH))
+    library_items.update(manager.library)
+
     counts = await asyncio.to_thread(
         scan_download_counts,
-        manager.library,
+        library_items,
         app_state.single_part_filename_template,
         app_state.multi_part_filename_template,
         DOWNLOAD_DIR,

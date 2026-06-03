@@ -643,6 +643,7 @@ onDestroy(() => {
 					{item}
 					expired={true}
 					{javstashEnabled}
+					downloadedCount={downloadCounts[item.content_id] ?? 0}
 					onDelete={async (i) => {
 						try {
 							await deleteExpiredItem(i.mylibrary_id);

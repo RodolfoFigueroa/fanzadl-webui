@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from fanzadl import FanzaDLManager
 from fanzadl_webui.dependencies import (
@@ -18,6 +19,8 @@ from fanzadl_webui.routes.images import precache_all, purge_stale
 from fanzadl_webui.state import AppState
 from fanzadl_webui.webhook import fire_webhook
 
+logger = logging.getLogger(__name__)
+
 
 async def _publish_library_diff(
     old_snapshot: dict[int, str],
@@ -29,6 +32,12 @@ async def _publish_library_diff(
     for vid_id in current_ids - old_ids_set:
         item = manager.library.get(vid_id)
         if item is not None:
+            logger.info(
+                "Library item added: mylibrary_id=%s content_id=%s title=%s",
+                vid_id,
+                item.content_id,
+                getattr(item, "title", None),
+            )
             publish_library_event(
                 app_state,
                 LibraryEvent(
@@ -52,6 +61,11 @@ async def _publish_library_diff(
             app_state.background_tasks.add(_wh_task)
             _wh_task.add_done_callback(app_state.background_tasks.discard)
     for vid_id in old_ids_set - current_ids:
+        logger.info(
+            "Library item expired: mylibrary_id=%s content_id=%s",
+            vid_id,
+            old_snapshot[vid_id],
+        )
         publish_library_event(
             app_state,
             LibraryEvent(

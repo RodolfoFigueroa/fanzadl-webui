@@ -224,6 +224,42 @@ def get_unavailable_items(path: Path) -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def get_all_items(path: Path) -> dict[int, dict]:
+    """Return all persisted library items keyed by ``mylibrary_id``.
+
+    Args:
+        path: Path to the SQLite database file.
+
+    Returns:
+        A dict of persisted item metadata for both available and unavailable
+        library rows.
+    """
+    try:
+        conn = _get_conn(path)
+    except Exception:  # noqa: BLE001
+        logger.warning("Failed to open library DB", exc_info=True)
+        return {}
+    try:
+        rows = conn.execute(
+            """
+            SELECT mylibrary_id, content_id, title, content_type, parts, javstash_info_json
+            FROM library
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+    result: dict[int, dict] = {}
+    for row in rows:
+        item = dict(row)
+        if item.get("javstash_info_json"):
+            with contextlib.suppress(json.JSONDecodeError, ValueError):
+                item.update(json.loads(item["javstash_info_json"]))
+        item.pop("javstash_info_json", None)
+        result[item["mylibrary_id"]] = item
+    return result
+
+
 def delete_unavailable_item(path: Path, mylibrary_id: int) -> bool:
     """Delete a specific unavailable item from the DB.
 

@@ -134,16 +134,12 @@ let imgErrors = $state(new Set<number>());
                             {:else if col.id === 'purchase_date'}
                                 <span class="text-xs text-th-text-dim whitespace-nowrap">{formatDate(item.purchase_date)}</span>
                             {:else if col.id === 'downloaded_parts'}
-                                {#if !expired}
-                                    <span class="text-xs text-th-text-dim whitespace-nowrap">
-                                        {downloaded}/{item.parts || 1}
-                                        {#if active > 0}
-                                            <span class="ml-1 text-sakura-400 animate-pulse">{active} dl</span>
-                                        {/if}
-                                    </span>
-                                {:else}
-                                    <span class="text-xs text-th-text-faint">—</span>
-                                {/if}
+                                <span class="text-xs text-th-text-dim whitespace-nowrap">
+                                    {downloaded}/{item.parts || 1}
+                                    {#if !expired && active > 0}
+                                        <span class="ml-1 text-sakura-400 animate-pulse">{active} dl</span>
+                                    {/if}
+                                </span>
                             {:else if col.id === 'expire'}
                                 <span class="text-xs whitespace-nowrap {days <= 1 ? 'text-amber-400 font-semibold' : 'text-th-text-dim'}">
                                     {#if days < 0}

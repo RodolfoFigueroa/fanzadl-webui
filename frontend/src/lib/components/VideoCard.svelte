@@ -109,15 +109,13 @@ const days = $derived(daysLeft(item.expire));
 		<div class="text-xs text-th-text-dim flex items-center mt-auto">
 			<span>{formatDate(item.purchase_date)}</span>
 		</div>
-		{#if !expired}
-			<div class="text-xs text-th-text-dim flex items-center gap-1 flex-wrap">
-				<span>{downloadedCount}/{('parts' in item ? item.parts || 1 : 1)} downloaded</span>
-				{#if activeDownloadCount > 0}
+		<div class="text-xs text-th-text-dim flex items-center gap-1 flex-wrap">
+			<span>{downloadedCount}/{('parts' in item ? item.parts || 1 : 1)} downloaded</span>
+			{#if !expired && activeDownloadCount > 0}
 					<span class="text-th-text-faint">·</span>
 					<span class="text-sakura-400 animate-pulse">{activeDownloadCount} downloading</span>
-				{/if}
-			</div>
-		{/if}
+			{/if}
+		</div>
 		<div
 			class="text-xs flex items-center gap-1
 				{days <= 1 ? 'text-amber-400 font-semibold' : 'text-th-text-dim'}"
