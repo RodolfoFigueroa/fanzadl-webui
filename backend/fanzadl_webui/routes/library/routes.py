@@ -6,22 +6,19 @@ from typing import Annotated, Literal
 from fanzadl import FanzaDLManager
 from fanzadl.models.video import LibraryItemContentsModel
 from fanzadl_webui.dependencies import (
-    IMAGE_CACHE_DIR,
     LIBRARY_DB_PATH,
     get_app_state,
     get_manager,
     require_api_key,
     require_dev_mode,
 )
-from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.library_db import (
     delete_unavailable_item,
     get_unavailable_items,
     mark_item_unavailable,
 )
-from fanzadl_webui.routes.images import precache_all, purge_stale
 from fanzadl_webui.routes.library.refresh import (
-    _warm_save_and_enqueue,
+    run_post_update,
 )
 from fanzadl_webui.state import AppState
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -136,16 +133,7 @@ async def refresh_library(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to refresh library: {exc}",
         ) from exc
-    app_state.stream_cache = {}
-    await asyncio.to_thread(purge_stale, manager, IMAGE_CACHE_DIR)
-    await rescan_and_store(app_state)
-    for coro in (
-        precache_all(manager, app_state.http_client, IMAGE_CACHE_DIR),
-        _warm_save_and_enqueue(manager, app_state, old_snapshot),
-    ):
-        task = asyncio.create_task(coro)
-        app_state.background_tasks.add(task)
-        task.add_done_callback(app_state.background_tasks.discard)
+    await run_post_update(manager, app_state, old_snapshot=old_snapshot, enqueue=True)
     return {"status": "ok"}
 
 

@@ -13,7 +13,7 @@ from fanzadl_webui.dependencies import (
     get_manager,
     require_api_key,
 )
-from fanzadl_webui.library_db import get_unavailable_items
+from fanzadl_webui.library_db import get_all_content_ids
 from fanzadl_webui.state import AppState
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
@@ -52,10 +52,8 @@ async def precache_all(
             await _fetch_and_cache(http_client, str(item.package_image_url), dest)
 
 
-def purge_stale(manager: FanzaDLManager, cache_dir: Path) -> None:
-    known = {item.content_id for item in manager.library.values()} | {
-        row["content_id"] for row in get_unavailable_items(LIBRARY_DB_PATH)
-    }
+def purge_stale(cache_dir: Path) -> None:
+    known = get_all_content_ids(LIBRARY_DB_PATH)
     for cached in cache_dir.glob("*.jpg"):
         if cached.stem not in known:
             cached.unlink()

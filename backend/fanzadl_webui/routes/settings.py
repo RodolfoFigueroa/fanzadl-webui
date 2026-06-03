@@ -13,7 +13,6 @@ import httpx
 from apscheduler.triggers.cron import CronTrigger
 from fanzadl.exceptions import MalformedEmailError, WrongCredentialsError
 from fanzadl_webui.dependencies import (
-    IMAGE_CACHE_DIR,
     JAVSTASH_KEY_PATH,
     LIBRARY_DB_PATH,
     TOKEN_STORE_PATH,
@@ -27,9 +26,9 @@ from fanzadl_webui.library_db import (
 )
 from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
 from fanzadl_webui.models import StatusResponse
-from fanzadl_webui.routes import images
 from fanzadl_webui.routes._utils import _fire_background
 from fanzadl_webui.routes.download import cancel_active_jobs
+from fanzadl_webui.routes.library.refresh import run_post_update
 from fanzadl_webui.scheduler import schedule_library_refresh, unschedule_library_refresh
 from fanzadl_webui.state import AppState
 from fanzadl_webui.store.api_key import delete_api_key
@@ -591,28 +590,7 @@ async def connect_fanza(
 
     app_state.save_fn(manager.user_id, manager.refresh_token)
     app_state.manager = manager
-    await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
-
-    async def _warm_and_save(m: PersistingFanzaDLManager) -> None:
-        restored = m._ids_restored_from_cache  # noqa: SLF001
-        new_ids = set(m.library) - restored
-        await warm_all_details(m, item_ids=new_ids)
-        await asyncio.to_thread(
-            save_library_db,
-            LIBRARY_DB_PATH,
-            m.user_id,
-            m,
-            new_ids,
-        )
-        m._ids_restored_from_cache = set()  # noqa: SLF001
-
-    for coro in (
-        images.precache_all(manager, app_state.http_client, IMAGE_CACHE_DIR),
-        _warm_and_save(manager),
-    ):
-        task = asyncio.create_task(coro)
-        app_state.background_tasks.add(task)
-        task.add_done_callback(app_state.background_tasks.discard)
+    await run_post_update(manager, app_state)
 
     return StatusResponse(status="ok")
 

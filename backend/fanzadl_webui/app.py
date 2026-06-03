@@ -19,11 +19,9 @@ from fanzadl_webui.dependencies import (
     LOCAL_API_KEY_PATH,
     TOKEN_STORE_PATH,
 )
-from fanzadl_webui.filename import rescan_and_store
 from fanzadl_webui.history_db import init_history_db
-from fanzadl_webui.library_db import save_library_db
 from fanzadl_webui.log_handler import NotificationHandler
-from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
+from fanzadl_webui.manager import PersistingFanzaDLManager
 from fanzadl_webui.routes import (
     auth,
     download,
@@ -36,6 +34,7 @@ from fanzadl_webui.routes import (
     streams,
     url,
 )
+from fanzadl_webui.routes.library.refresh import run_post_update
 from fanzadl_webui.scheduler import schedule_library_refresh
 from fanzadl_webui.state import AppState
 from fanzadl_webui.store.api_key import load_api_key, save_api_key
@@ -172,20 +171,6 @@ def _init_app_state(  # noqa: PLR0913
     )
 
 
-async def _warm_and_save(manager: PersistingFanzaDLManager) -> None:
-    restored = manager._ids_restored_from_cache  # noqa: SLF001
-    new_ids = set(manager.library) - restored
-    await warm_all_details(manager, item_ids=new_ids)
-    await asyncio.to_thread(
-        save_library_db,
-        LIBRARY_DB_PATH,
-        manager.user_id,
-        manager,
-        new_ids,
-    )
-    manager._ids_restored_from_cache = set()  # noqa: SLF001
-
-
 async def _try_restore_session(
     app: FastAPI,
     enc_key: bytes,
@@ -210,15 +195,7 @@ async def _try_restore_session(
         await asyncio.to_thread(manager.update_library)
         state = app.state.app_state
         state.manager = manager
-        await asyncio.to_thread(images.purge_stale, manager, IMAGE_CACHE_DIR)
-        await rescan_and_store(state)
-        for coro in (
-            images.precache_all(manager, client, IMAGE_CACHE_DIR),
-            _warm_and_save(manager),
-        ):
-            task = asyncio.create_task(coro)
-            state.background_tasks.add(task)
-            task.add_done_callback(state.background_tasks.discard)
+        await run_post_update(manager, state)
         logger.info("Session restored from token store")
     except AuthExpiredError:
         logger.warning("Stored tokens are expired; deleting token store")

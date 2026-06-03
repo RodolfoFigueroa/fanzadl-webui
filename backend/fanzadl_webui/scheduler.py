@@ -10,15 +10,7 @@ if TYPE_CHECKING:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from fastapi import FastAPI
 
-from fanzadl_webui.dependencies import IMAGE_CACHE_DIR, LIBRARY_DB_PATH
-from fanzadl_webui.filename import rescan_and_store
-from fanzadl_webui.library_db import save_library_db
-from fanzadl_webui.manager import PersistingFanzaDLManager, warm_all_details
-from fanzadl_webui.routes.download import (
-    auto_enqueue_missing_parts,
-    auto_enqueue_new_items,
-)
-from fanzadl_webui.routes.images import precache_all, purge_stale
+from fanzadl_webui.routes.library.refresh import run_post_update
 
 logger = logging.getLogger(__name__)
 
@@ -45,34 +37,7 @@ async def do_library_refresh(app: FastAPI) -> None:
         logger.exception("Scheduled library refresh: update_library failed")
         return
 
-    state.stream_cache = {}
-    await asyncio.to_thread(purge_stale, manager, IMAGE_CACHE_DIR)
-    await rescan_and_store(state)
-
-    async def _warm_and_save() -> None:
-        new_ids: set[int] | None = None
-        if isinstance(manager, PersistingFanzaDLManager):
-            new_ids = set(manager.library) - manager._ids_restored_from_cache  # noqa: SLF001
-        await warm_all_details(manager, item_ids=new_ids)
-        if isinstance(manager, PersistingFanzaDLManager):
-            await asyncio.to_thread(
-                save_library_db,
-                LIBRARY_DB_PATH,
-                manager.user_id,
-                manager,
-                new_ids or set(),
-            )
-            manager._ids_restored_from_cache = set()  # noqa: SLF001
-        auto_new_ids = (new_ids or set()) if state.auto_download_new_items else set()
-        if state.auto_download_new_items and new_ids:
-            await auto_enqueue_new_items(new_ids, state)
-        if state.auto_download_missing_parts:
-            await auto_enqueue_missing_parts(auto_new_ids, state)
-
-    await asyncio.gather(
-        precache_all(manager, state.http_client, IMAGE_CACHE_DIR),
-        _warm_and_save(),
-    )
+    await run_post_update(manager, state, enqueue=True)
     logger.info("Scheduled library refresh complete")
 
 

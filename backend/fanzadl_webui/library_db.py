@@ -249,6 +249,27 @@ def delete_unavailable_item(path: Path, mylibrary_id: int) -> bool:
         conn.close()
 
 
+def get_all_content_ids(path: Path) -> set[str]:
+    """Return the content IDs of every item in the library DB.
+
+    Args:
+        path: Path to the SQLite database file.
+
+    Returns:
+        A set of ``content_id`` values, regardless of ``available`` status.
+    """
+    try:
+        conn = _get_conn(path)
+    except Exception:  # noqa: BLE001
+        logger.warning("Failed to open library DB", exc_info=True)
+        return set()
+    try:
+        rows = conn.execute("SELECT content_id FROM library").fetchall()
+    finally:
+        conn.close()
+    return {row["content_id"] for row in rows}
+
+
 def mark_item_unavailable(path: Path, mylibrary_id: int) -> None:
     """Mark a library item as unavailable.
 
