@@ -1,28 +1,28 @@
 repos:
-- repo: https://github.com/astral-sh/uv-pre-commit
-  rev: 0.11.18
-  hooks:
-    - id: uv-lock
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.11.18
+    hooks:
+      - id: uv-lock
 
 
-- repo: local
-  hooks:
-    - id: update-package-lock
-      name: Update package-lock.json
-      entry: bash -c 'cd frontend && npm install --package-lock-only --ignore-scripts'
-      language: system
-      files: ^frontend/package\.json$
-      pass_filenames: false
+  - repo: local
+    hooks:
+      - id: update-package-lock
+        name: Update package-lock.json
+        entry: bash -c 'cd frontend && npm install --package-lock-only --ignore-scripts'
+        language: system
+        files: ^frontend/package\.json$
+        pass_filenames: false
 
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.15.14
-  hooks:
-    - id: ruff-check
-      args: [ --fix-only ]
-    - id: ruff-format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.14
+    hooks:
+      - id: ruff-check
+        args: [ --fix-only ]
+      - id: ruff-format
 
-- repo: https://github.com/biomejs/pre-commit
-  rev: v2.4.15
-  hooks:
-    - id: biome-check
-      additional_dependencies: ['@biomejs/biome@2.4.15']
+  - repo: https://github.com/biomejs/pre-commit
+    rev: v2.4.15
+    hooks:
+      - id: biome-check
+        additional_dependencies: ['@biomejs/biome@2.4.15']
