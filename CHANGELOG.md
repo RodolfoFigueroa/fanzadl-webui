@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.4.2...v1.4.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* Widen accepted content patterns ([a641fbf](https://github.com/RodolfoFigueroa/fanzadl-webui/commit/a641fbf906b8d885d17c39640df6d30bacad6efc))
+
 ## [1.4.2](https://github.com/RodolfoFigueroa/fanzadl-webui/compare/v1.4.1...v1.4.2) (2026-06-03)
 
 
